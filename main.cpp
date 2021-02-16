@@ -331,6 +331,22 @@ ebpfsnitch_daemon::nfq_cb(
 
     const int l_ret = nfq_get_payload(p_nfa, &l_data);
     if (l_ret >= 0) {
+        assert(l_ret >= 20);
+
+        uint8_t l_protocol = *((uint8_t*) (l_data + 9));
+        
+        if (l_protocol != 6) {
+            l_self->m_log->info(
+                "allowing unknown protocol "
+                "userId {} groupId {} protocol {}",
+                l_packet_user_id,
+                l_packet_group_id,
+                l_protocol
+            );
+    
+            return nfq_set_verdict(p_qh, l_id, NF_ACCEPT, 0, NULL);
+        }
+
         if (l_ret >= 24) {
             const uint16_t l_src_port = *((uint16_t*) (l_data + 20));
             const uint16_t l_dst_port = *((uint16_t*) (l_data + 22));
@@ -373,6 +389,8 @@ ebpfsnitch_daemon::nfq_cb(
         } else {
             l_self->m_log->error("packet smaller than minimum tcp size");
         }
+    } else {
+        l_self->m_log->info("ret is", l_ret);
     }
 
     return nfq_set_verdict(p_qh, l_id, NF_ACCEPT, 0, NULL);
