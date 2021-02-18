@@ -43,6 +43,21 @@ file_to_string(const std::string &p_path);
 std::string
 ipv4_to_string(const uint32_t p_address);
 
+iptables_raii::iptables_raii(std::shared_ptr<spdlog::logger> p_log):
+    m_log(p_log)
+{
+    m_log->trace("adding iptables rules");
+
+    std::system("iptables -A OUTPUT -j NFQUEUE --queue-num 0");
+}
+
+iptables_raii::~iptables_raii()
+{
+    m_log->trace("removing iptables rules");
+
+    std::system("iptables -D OUTPUT -j NFQUEUE --queue-num 0");
+}
+
 ebpfsnitch_daemon::ebpfsnitch_daemon(
     std::shared_ptr<spdlog::logger> p_log
 ):
@@ -118,8 +133,7 @@ m_shutdown(false)
         throw std::runtime_error("placeholder");
     }
 
-    m_log->trace("adding iptables rules");
-    std::system("iptables -A OUTPUT -j NFQUEUE --queue-num 0");
+    m_iptables_raii = std::make_shared<iptables_raii>(p_log);
 
     m_log->trace("attaching kprobes");
     ebpf::StatusTuple l_attach_res = m_bpf.attach_kprobe(
@@ -185,10 +199,7 @@ m_shutdown(false)
 
 ebpfsnitch_daemon::~ebpfsnitch_daemon()
 {
-    m_log->trace("ebpfsnitch_daemon destructor");
-
-    m_log->trace("removing iptables rules");
-    std::system("iptables -D OUTPUT -j NFQUEUE --queue-num 0");
+    m_log->trace("ebpfsnitch_daemon destructor");;
 
     m_log->trace("joining threads");
     m_shutdown.store(true);
@@ -519,8 +530,6 @@ ebpfsnitch_daemon::lookup_connection_info(const nfq_event_t &p_event)
 {
     const std::string l_key = std::to_string(p_event.m_source_port) +
         std::to_string(p_event.m_destination_port);
-
-    m_log->info("port key is: {}", l_key);
 
     std::lock_guard<std::mutex> l_guard(m_lock);
 

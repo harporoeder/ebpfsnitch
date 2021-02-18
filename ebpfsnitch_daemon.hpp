@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include <queue>
 #include <optional>
+#include <memory>
 
 #include <bcc/bcc_version.h>
 #include <bcc/BPF.h>
@@ -46,6 +47,16 @@ struct nfq_event_t {
     uint8_t  m_protocol;
 };
 
+class iptables_raii {
+public:
+    iptables_raii(std::shared_ptr<spdlog::logger> p_log);
+
+    ~iptables_raii();
+
+private:
+    std::shared_ptr<spdlog::logger> m_log;
+};
+
 class ebpfsnitch_daemon {
 public:
     ebpfsnitch_daemon(
@@ -53,6 +64,7 @@ public:
     );
 
     ~ebpfsnitch_daemon();
+
 private:
     void filter_thread();
     void probe_thread();
@@ -122,6 +134,8 @@ private:
     std::mutex m_verdicts_lock;
     std::unordered_map<std::string, bool> m_verdicts;
     std::optional<bool> get_verdict(const std::string &p_executable);
+
+    std::shared_ptr<iptables_raii> m_iptables_raii;
     
     std::thread m_filter_thread;
     std::thread m_probe_thread;
