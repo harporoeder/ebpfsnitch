@@ -1,0 +1,14 @@
+{
+  "name": "ui",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [],
+  "author": "",
+  "devDependencies": {
+    "electron": "^11.2.3"
+  }
+}
