@@ -16,6 +16,7 @@
 #include <poll.h>
 #include <sys/un.h>
 #include <nlohmann/json.hpp>
+#include <exception>
 
 #include <bcc/bcc_version.h>
 #include <bcc/BPF.h>
@@ -26,6 +27,14 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 
 #include "ebpfsnitch_daemon.hpp"
+
+std::shared_ptr<ebpfsnitch_daemon> g_daemon;
+std::condition_variable g_shutdown;
+std::mutex g_shutdown_mutex;
+
+
+static void
+signal_handler(const int p_sig);
 
 static uint64_t
 nanoseconds()
@@ -555,69 +564,75 @@ ebpfsnitch_daemon::get_verdict(const std::string &p_executable)
 void
 ebpfsnitch_daemon::control_thread()
 {
-    m_log->trace("ebpfsnitch_daemon::control_thread() entry");
+    try {
+        m_log->trace("ebpfsnitch_daemon::control_thread() entry");
 
-    int l_fd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (l_fd <= 0) {
-        throw std::runtime_error("socket()");
-    }
-
-    const char *const l_path = "/tmp/ebpfsnitch.sock";
-
-    unlink(l_path);
-
-    struct sockaddr_un l_addr;
-    memset(&l_addr, 0, sizeof(l_addr));
-    l_addr.sun_family = AF_UNIX;
-    strcpy(l_addr.sun_path, l_path);
-
-    if (bind(l_fd, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
-        throw std::runtime_error("bind()");
-    }
-
-    if (listen(l_fd, 5) < 0) {
-        throw std::runtime_error("listen()");
-    }
-
-    if (chmod("/tmp/ebpfsnitch.sock", 666) != 0){
-        throw std::runtime_error("chmod()");
-    }
-
-    struct pollfd l_poll_fd;
-    l_poll_fd.fd     = l_fd;
-    l_poll_fd.events = POLLIN;
-
-    while (true) {
-        if (m_shutdown.load()) {
-            break;
-        }
-        
-        int l_ret = poll(&l_poll_fd, 1, 1000);
-
-        if (l_ret < 0) {
-            m_log->error("poll() unix socket error {}", l_ret);
-
-            break;
-        } else if (l_ret == 0) {
-            continue;
+        int l_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+        if (l_fd <= 0) {
+            throw std::runtime_error("socket()");
         }
 
-        int l_client_fd = accept(
-            l_fd,
-            (struct sockaddr *)&l_addr,
-            (socklen_t*)&l_addr
-        );
+        const char *const l_path = "/tmp/ebpfsnitch.sock";
 
-        if (l_client_fd < 0) {
-            m_log->error("accept() unix socket error {}", l_client_fd);
+        unlink(l_path);
+
+        struct sockaddr_un l_addr;
+        memset(&l_addr, 0, sizeof(l_addr));
+        l_addr.sun_family = AF_UNIX;
+        strcpy(l_addr.sun_path, l_path);
+
+        if (bind(l_fd, (struct sockaddr*)&l_addr, sizeof(l_addr)) < 0) {
+            throw std::runtime_error("bind()");
         }
 
-        m_log->info("accept unix socket connection");
+        if (listen(l_fd, 5) < 0) {
+            throw std::runtime_error("listen()");
+        }
 
-        handle_control(l_client_fd);
+        if (chmod("/tmp/ebpfsnitch.sock", 666) != 0){
+            throw std::runtime_error("chmod()");
+        }
+
+        struct pollfd l_poll_fd;
+        l_poll_fd.fd     = l_fd;
+        l_poll_fd.events = POLLIN;
+
+        while (true) {
+            if (m_shutdown.load()) {
+                break;
+            }
+            
+            int l_ret = poll(&l_poll_fd, 1, 1000);
+
+            if (l_ret < 0) {
+                m_log->error("poll() unix socket error {}", l_ret);
+
+                break;
+            } else if (l_ret == 0) {
+                continue;
+            }
+
+            int l_client_fd = accept(
+                l_fd,
+                (struct sockaddr *)&l_addr,
+                (socklen_t*)&l_addr
+            );
+
+            if (l_client_fd < 0) {
+                m_log->error("accept() unix socket error {}", l_client_fd);
+            }
+
+            m_log->info("accept unix socket connection");
+
+            handle_control(l_client_fd);
+        }
+
+        close(l_fd);
+    } catch (...) {
+        m_log->error("ebpfsnitch_daemon::control_thread()");
+
+        g_shutdown.notify_all();
     }
-
-    close(l_fd);
 
     m_log->trace("ebpfsnitch_daemon::control_thread() exit");
 }
@@ -642,7 +657,6 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
             }
 
             l_event = m_events.front();
-            m_events.pop();
         }
 
         const nlohmann::json l_json = {
@@ -669,6 +683,13 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
 
         unsigned char l_line[1024];
         ssize_t l_rv = read(p_sock, &l_line, 1024);
+    
+        if (l_rv == -1) {
+            m_log->error("read() failed");
+    
+            break;
+        }
+    
         unsigned char *l_p = (unsigned char *)memchr(l_line, '\n', 1024);
         
         if (l_p == NULL) {
@@ -682,6 +703,11 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
         m_log->info("got command |{}|", l_line);
 
         nlohmann::json l_verdict = nlohmann::json::parse(l_line);
+
+        {
+            std::lock_guard<std::mutex> l_guard(m_events_lock);
+            m_events.pop();
+        }
 
         {
             std::lock_guard<std::mutex> l_guard(m_verdicts_lock);
@@ -771,11 +797,7 @@ trace_ebpf()
     }
 }
 
-std::shared_ptr<ebpfsnitch_daemon> g_daemon;
-std::condition_variable g_shutdown;
-std::mutex g_shutdown_mutex;
-
-static void
+void
 signal_handler(const int p_sig)
 {
     g_log->info("signal_handler");
@@ -783,6 +805,12 @@ signal_handler(const int p_sig)
     g_daemon.reset();
 
     g_shutdown.notify_all();
+}
+
+static void
+signal_pipe(const int p_sig)
+{
+    g_log->error("SIGPIPE");
 }
 
 int
@@ -794,6 +822,7 @@ main()
     g_log->info("LIBBCC_VERSION: {}", LIBBCC_VERSION);
 
     signal(SIGINT, signal_handler); 
+    signal(SIGPIPE, signal_pipe);
 
     g_daemon = std::make_shared<ebpfsnitch_daemon>(g_log);
 
