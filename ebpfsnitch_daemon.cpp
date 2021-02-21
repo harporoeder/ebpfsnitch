@@ -353,7 +353,7 @@ ebpfsnitch_daemon::bpf_reader(
         m_mapping[l_key] = l_info2;
     }
 
-    process_unhandled();
+    process_unassociated();
 }
 
 void
@@ -372,6 +372,48 @@ ebpfsnitch_daemon::bpf_reader_indirect(
 }
 
 bool
+ebpfsnitch_daemon::process_associated_event(
+    const struct nfq_event_t       &l_nfq_event,
+    const struct connection_info_t &l_info
+) {
+    const std::optional<bool> l_verdict = get_verdict(l_info.m_executable);
+
+    if (l_verdict) {
+        if (l_verdict.value()) {
+            m_log->info("verdict allow {}", l_info.m_executable);
+
+            std::lock_guard<std::mutex> l_guard(m_response_lock);
+
+            nfq_set_verdict(
+                m_nfq_queue,
+                l_nfq_event.m_nfq_id,
+                NF_ACCEPT,
+                0,
+                NULL
+            );
+
+            return true;
+        } else {
+            m_log->info("verdict deny {}", l_info.m_executable);
+
+            std::lock_guard<std::mutex> l_guard(m_response_lock);
+
+            nfq_set_verdict(
+                m_nfq_queue,
+                l_nfq_event.m_nfq_id,
+                NF_DROP,
+                0,
+                NULL
+            );
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool
 ebpfsnitch_daemon::process_nfq_event(
     const struct nfq_event_t &l_nfq_event,
     const bool                p_queue_unassociated
@@ -380,74 +422,45 @@ ebpfsnitch_daemon::process_nfq_event(
         lookup_connection_info(l_nfq_event);
 
     if (l_optional_info) {
-        const struct connection_info_t l_info = l_optional_info.value();
-
-        const std::optional<bool> l_verdict = get_verdict(l_info.m_executable);
-
-        if (l_verdict) {
-            if (l_verdict.value()) {
-                m_log->info("verdict allow {}", l_info.m_executable);
-
-                std::lock_guard<std::mutex> l_guard(m_response_lock);
-
-                nfq_set_verdict(
-                    m_nfq_queue,
-                    l_nfq_event.m_nfq_id,
-                    NF_ACCEPT,
-                    0,
-                    NULL
-                );
-
-                return true;
-            } else {
-                m_log->info("verdict deny {}", l_info.m_executable);
-
-                std::lock_guard<std::mutex> l_guard(m_response_lock);
-
-                nfq_set_verdict(
-                    m_nfq_queue,
-                    l_nfq_event.m_nfq_id,
-                    NF_DROP,
-                    0,
-                    NULL
-                );
-
-                return true;
-            }
-        } else {
-            m_log->info("no verdict yet");
+        if (process_associated_event(l_nfq_event, l_optional_info.value())) {
+            return true;
         }
-    } else {
-        m_log->info("unassociated");
     }
 
     if (p_queue_unassociated) {
-        std::lock_guard<std::mutex> l_guard_undecided(
-            m_undecided_packets_lock
-        );
+        if (l_optional_info) {
+            m_log->info("process_nfq_event queueing undecided");
 
-        m_undecided_packets.push(l_nfq_event);
-    }
-    
-    if (l_optional_info) {
-        m_log->info("unassociated and has optional");
+            const struct connection_info_t l_info = l_optional_info.value();
 
-        const struct connection_info_t l_info = l_optional_info.value();
+            struct event_t l_event;
+            l_event.m_executable       = l_info.m_executable;
+            l_event.m_user_id          = l_info.m_user_id;
+            l_event.m_process_id       = l_info.m_process_id;
+            l_event.m_source_port      = l_nfq_event.m_source_port;
+            l_event.m_destination_port = l_nfq_event.m_destination_port;
 
-        struct event_t l_event;
-        l_event.m_executable       = l_info.m_executable;
-        l_event.m_user_id          = l_info.m_user_id;
-        l_event.m_process_id       = l_info.m_process_id;
-        l_event.m_source_port      = l_nfq_event.m_source_port;
-        l_event.m_destination_port = l_nfq_event.m_destination_port;
+            {
+                std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
+                m_undecided_packets.push(l_nfq_event);
+            }
 
-        std::lock_guard<std::mutex> l_guard_1(m_events_lock);
+            std::lock_guard<std::mutex> l_guard_1(m_events_lock);
 
-        if (m_active_queries.find(l_info.m_executable)
-            == m_active_queries.end()
-        ) {
-            m_events.push(l_event);
-            m_active_queries.insert(l_info.m_executable);
+            if (m_active_queries.find(l_info.m_executable)
+                == m_active_queries.end()
+            ) {
+                m_events.push(l_event);
+                m_active_queries.insert(l_info.m_executable);
+            }
+        } else {
+            m_log->info("process_nfq_event queueing unassociated");
+
+            std::lock_guard<std::mutex> l_guard_undecided(
+                m_unassociated_packets_lock
+            );
+
+            m_unassociated_packets.push(l_nfq_event);
         }
     }
 
@@ -505,7 +518,7 @@ ebpfsnitch_daemon::nfq_handler(
     const ip_protocol_t p_proto =
         static_cast<ip_protocol_t>(l_nfq_event.m_protocol);
 
-    if (l_nfq_event.m_protocol != 6) {
+    if (p_proto != ip_protocol_t::TCP) {
         std::lock_guard<std::mutex> l_guard(m_response_lock);
         m_log->error(
             "unknown allowing unhandled protocol {} {}",
@@ -515,12 +528,12 @@ ebpfsnitch_daemon::nfq_handler(
         return nfq_set_verdict(p_qh, l_nfq_event.m_nfq_id, NF_ACCEPT, 0, NULL);
     }
 
-    l_nfq_event.m_source_address      =  *((uint32_t*) (l_data + 12));
-    l_nfq_event.m_destination_address =  *((uint32_t*) (l_data + 16));
+    l_nfq_event.m_source_address      = *((uint32_t*) (l_data + 12));
+    l_nfq_event.m_destination_address = *((uint32_t*) (l_data + 16));
+    l_nfq_event.m_source_port         = ntohs(*((uint16_t*) (l_data + 20)));
+    l_nfq_event.m_destination_port    = ntohs(*((uint16_t*) (l_data + 22)));
+    l_nfq_event.m_timestamp           = nanoseconds();
 
-    l_nfq_event.m_source_port      = ntohs(*((uint16_t*) (l_data + 20)));
-    l_nfq_event.m_destination_port = ntohs(*((uint16_t*) (l_data + 22)));
-    
     m_log->info(
         "nfq event "
         "userId {} groupId {} protocol {} sourceAddress {} sourcePort {}"
@@ -744,6 +757,62 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
 }
 
 void
+ebpfsnitch_daemon::process_unassociated()
+{
+    std::queue<struct nfq_event_t> l_remaining;
+
+    m_log->info("process unassociated");
+
+    std::lock_guard<std::mutex> l_guard(m_unassociated_packets_lock);
+
+    while (m_unassociated_packets.size()) {
+        struct nfq_event_t l_event = m_unassociated_packets.front(); 
+
+        const std::optional<struct connection_info_t> l_optional_info =
+            lookup_connection_info(l_event);
+
+        if (l_optional_info) {
+            struct connection_info_t l_info = l_optional_info.value();
+
+            if (!process_associated_event(l_event, l_info)) {
+                {
+                    std::lock_guard<std::mutex> l_guard2(
+                        m_undecided_packets_lock
+                    );
+                    m_undecided_packets.push(l_event);
+                }
+    
+                {
+                    struct event_t l_event;
+                    l_event.m_executable       = l_info.m_executable;
+                    l_event.m_user_id          = l_info.m_user_id;
+                    l_event.m_process_id       = l_info.m_process_id;
+                    l_event.m_source_port      = l_event.m_source_port;
+                    l_event.m_destination_port = l_event.m_destination_port;
+
+                    std::lock_guard<std::mutex> l_guard2(m_events_lock);
+
+                    if (m_active_queries.find(l_info.m_executable)
+                        == m_active_queries.end()
+                    ) {
+                        m_events.push(l_event);
+                        m_active_queries.insert(l_info.m_executable);
+                    }
+                }
+            }
+        } else {
+            m_log->info("still unassociated");
+
+            l_remaining.push(l_event);
+        }
+
+        m_unassociated_packets.pop();
+    }
+    
+    m_unassociated_packets = l_remaining;
+}
+
+void
 ebpfsnitch_daemon::process_unhandled()
 {
     std::queue<struct nfq_event_t> l_remaining;
@@ -755,10 +824,19 @@ ebpfsnitch_daemon::process_unhandled()
     while (m_undecided_packets.size()) {
         struct nfq_event_t l_unhandled = m_undecided_packets.front(); 
 
-        if (!process_nfq_event(l_unhandled, false)) {
-            m_log->info("still undecided");
+        const std::optional<struct connection_info_t> l_optional_info =
+            lookup_connection_info(l_unhandled);
 
-            l_remaining.push(l_unhandled);
+        if (l_optional_info) {
+            if (!process_associated_event(
+                l_unhandled, l_optional_info.value()))
+            {
+                m_log->info("still undecided");
+
+                l_remaining.push(l_unhandled);
+            }
+        } else {
+            m_log->error("event unassociated when it should be, dropping");
         }
 
         m_undecided_packets.pop();

@@ -58,6 +58,7 @@ struct nfq_event_t {
     uint16_t m_destination_port;
     uint32_t m_nfq_id;
     uint8_t  m_protocol;
+    uint64_t m_timestamp;
 };
 
 class iptables_raii {
@@ -123,8 +124,14 @@ private:
         const struct nfq_event_t &l_nfq_event,
         const bool                p_queue_unassociated
     );
+    // packets with an application without a user verdict
     std::queue<struct nfq_event_t> m_undecided_packets;
     std::mutex m_undecided_packets_lock;
+
+    // packets not yet associated with an application
+    std::queue<struct nfq_event_t> m_unassociated_packets;
+    std::mutex m_unassociated_packets_lock;
+    void process_unassociated();
 
     std::shared_ptr<spdlog::logger> m_log;
     ebpf::BPF m_bpf;
@@ -132,6 +139,12 @@ private:
     struct nfq_handle *m_nfq_handle;
     struct nfq_q_handle *m_nfq_queue;
     int m_nfq_fd;
+
+    bool
+    process_associated_event(
+        const struct nfq_event_t       &l_nfq_event,
+        const struct connection_info_t &l_info
+    );
 
     std::mutex m_lock;
     std::unordered_map<std::string, struct connection_info_t> m_mapping;
