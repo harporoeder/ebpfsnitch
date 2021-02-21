@@ -17,6 +17,7 @@
 #include <sys/un.h>
 #include <nlohmann/json.hpp>
 #include <exception>
+#include <regex>
 
 #include <bcc/bcc_version.h>
 #include <bcc/BPF.h>
@@ -316,6 +317,23 @@ ebpfsnitch_daemon::bpf_reader(
 
     const std::string l_command_line = std::string(l_readlink_buffer);
 
+    const std::string l_path_cgroup = 
+        "/proc/" +
+        std::to_string(l_info->m_process_id) +
+        "/cgroup";
+
+    const std::string l_cgroup = file_to_string(l_path_cgroup);
+
+    std::regex l_regex(".*/docker/(\\w+)\n"); 
+    std::smatch l_match;
+
+    std::string l_container_id = "";
+
+    if (std::regex_search(l_cgroup.begin(), l_cgroup.end(), l_match, l_regex)) {
+        std::cout << "got match|" << l_match[1] << "|" << std::endl;
+        l_container_id = l_match[1];
+    }
+
     m_log->info(
         "got event handle {} uid {} pid {} sourcePort {} sourceAddress {} "
         "destinationPort {} destinationAddress {}",
@@ -339,6 +357,7 @@ ebpfsnitch_daemon::bpf_reader(
     l_info2.m_user_id    = l_info->m_user_id;
     l_info2.m_process_id = l_info->m_process_id;
     l_info2.m_executable = l_command_line;
+    l_info2.m_container  = l_container_id;
 
     {
         std::lock_guard<std::mutex> l_guard(m_lock);
@@ -703,6 +722,7 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
             { "destinationPort",    l_nfq_event.m_destination_port },
             { "destinationAddress",
                 ipv4_to_string(l_nfq_event.m_destination_address)  },
+            { "container",          l_info.m_container             }
         };
 
         const std::string l_json_serialized = l_json.dump() + "\n";

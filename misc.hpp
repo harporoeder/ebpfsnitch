@@ -33,6 +33,7 @@ struct connection_info_t {
     uint32_t    m_user_id;
     uint32_t    m_process_id;
     std::string m_executable;
+    std::string m_container;
 };
 
 struct nfq_event_t {

@@ -18,6 +18,7 @@ class PromptDialog(QDialog):
         message1 = QLabel("Application: " + question["executable"])
         message2 = QLabel("Destination Address: " + question["destinationAddress"])
         message3 = QLabel("Destination Port: " + str(question["destinationPort"]))
+        message4 = QLabel("Container " + str(question["container"]))
 
         allowButton = QPushButton("Allow")
         denyButton = QPushButton("Deny")
@@ -35,6 +36,7 @@ class PromptDialog(QDialog):
         self.layout.addWidget(message1)
         self.layout.addWidget(message2)
         self.layout.addWidget(message3)
+        self.layout.addWidget(message4)
         self.layout.addWidget(self.forAllAddress)
         self.layout.addWidget(self.forAllPort)
         self.layout.addWidget(allowButton)
