@@ -13,6 +13,9 @@
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <spdlog/spdlog.h>
 
+#include "structs.h"
+#include "rule_engine.hpp"
+
 extern std::condition_variable g_shutdown;
 
 enum class ip_protocol_t : uint8_t {
@@ -22,36 +25,6 @@ enum class ip_protocol_t : uint8_t {
 };
 
 std::string ip_protocol_to_string(const ip_protocol_t p_protocol);
-
-struct probe_ipv4_event_t {
-    void    *m_handle;
-    bool     m_remove;
-    uint32_t m_user_id;
-    uint32_t m_process_id;
-    uint32_t m_source_address;
-    uint16_t m_source_port;
-    uint32_t m_destination_address;
-    uint16_t m_destination_port;
-    uint64_t m_timestamp;
-} __attribute__((packed));
-
-struct connection_info_t {
-    uint32_t    m_user_id;
-    uint32_t    m_process_id;
-    std::string m_executable;
-};
-
-struct nfq_event_t {
-    uint32_t m_user_id;
-    uint32_t m_group_id;
-    uint32_t m_source_address;
-    uint16_t m_source_port;
-    uint32_t m_destination_address;
-    uint16_t m_destination_port;
-    uint32_t m_nfq_id;
-    uint8_t  m_protocol;
-    uint64_t m_timestamp;
-};
 
 std::string nfq_event_to_string(const nfq_event_t &p_event);
 
@@ -74,6 +47,8 @@ public:
     ~ebpfsnitch_daemon();
 
 private:
+    rule_engine_t m_rule_engine;
+
     void filter_thread();
     void probe_thread();
     void control_thread();

@@ -106,8 +106,13 @@ async def daemon_client():
         print(parsed["executable"])
 
         command = {
-            "executable": parsed["executable"],
-            "allow": window.handle_prompt(parsed)
+            "allow": window.handle_prompt(parsed),
+            "clauses": [
+                {
+                    "field": "executable",
+                    "value": parsed["executable"]
+                }
+            ]
         }
 
         serialized = str.encode(json.dumps(command) + "\n")

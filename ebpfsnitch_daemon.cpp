@@ -383,7 +383,7 @@ ebpfsnitch_daemon::process_associated_event(
     const struct nfq_event_t       &l_nfq_event,
     const struct connection_info_t &l_info
 ) {
-    const std::optional<bool> l_verdict = get_verdict(
+    const std::optional<bool> l_verdict = m_rule_engine.get_verdict(
         l_nfq_event,
         l_info
     );
@@ -741,10 +741,11 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
         m_log->info("got command |{}|", l_line);
 
         nlohmann::json l_verdict = nlohmann::json::parse(l_line);
-    
-        {
-            std::lock_guard<std::mutex> l_guard(m_verdicts_lock);
-            m_verdicts[l_verdict["executable"]] = l_verdict["allow"];
+
+        try {
+            m_rule_engine.add_rule(l_verdict);
+        } catch (...) {
+            m_log->error("parsing failed");
         }
 
         process_unhandled();
