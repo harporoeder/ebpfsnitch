@@ -8,7 +8,7 @@ project (ebpfsnitch)
 
 set (CMAKE_CXX_STANDARD 17)
 
-add_executable (main main.cpp ebpfsnitch_daemon.cpp rule_engine.cpp)
+add_executable (main main.cpp ebpfsnitch_daemon.cpp rule_engine.cpp misc.cpp)
 
 target_compile_definitions(main PRIVATE SPDLOG_FMT_EXTERNAL)
 

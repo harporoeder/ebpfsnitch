@@ -30,5 +30,20 @@ struct nfq_event_t {
     uint64_t m_timestamp;
 };
 
+enum class ip_protocol_t : uint8_t {
+    ICMP = 1,
+    TCP  = 6,
+    UDP  = 17
+};
+
 std::string
 ipv4_to_string(const uint32_t p_address);
+
+std::string
+file_to_string(const std::string &p_path);
+
+uint64_t
+nanoseconds();
+
+std::string
+ip_protocol_to_string(const ip_protocol_t p_protocol);

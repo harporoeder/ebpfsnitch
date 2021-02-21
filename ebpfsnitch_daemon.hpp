@@ -18,14 +18,6 @@
 
 extern std::condition_variable g_shutdown;
 
-enum class ip_protocol_t : uint8_t {
-    ICMP = 1,
-    TCP  = 6,
-    UDP  = 17
-};
-
-std::string ip_protocol_to_string(const ip_protocol_t p_protocol);
-
 std::string nfq_event_to_string(const nfq_event_t &p_event);
 
 class iptables_raii {
