@@ -34,6 +34,7 @@ iptables_raii::iptables_raii(std::shared_ptr<spdlog::logger> p_log):
     m_log->trace("adding iptables rules");
 
     std::system("iptables -A OUTPUT -j NFQUEUE --queue-num 0");
+    std::system("iptables -I DOCKER-USER -i docker0 ! -o docker0 -j NFQUEUE --queue-num 0");
 }
 
 iptables_raii::~iptables_raii()
@@ -41,6 +42,7 @@ iptables_raii::~iptables_raii()
     m_log->trace("removing iptables rules");
 
     std::system("iptables -D OUTPUT -j NFQUEUE --queue-num 0");
+    std::system("iptables -D DOCKER-USER -i docker0 ! -o docker0  -j NFQUEUE --queue-num 0");
 }
 
 ebpfsnitch_daemon::ebpfsnitch_daemon(
@@ -484,19 +486,45 @@ ebpfsnitch_daemon::nfq_handler(
         // return 0;
     }
 
-    /*
+    const nf_hook_t p_hook =
+        static_cast<nf_hook_t>(l_header->hook);
+
+    struct nlif_handle *l_nlif = nlif_open();
+    if (l_nlif == NULL) {
+        m_log->error("nlif_open() failed");
+    }
+    nlif_query(l_nlif);
+
+    char l_indev[IFNAMSIZ];
+    nfq_get_indev_name(l_nlif, p_nfa, l_indev);
+
+    char l_outdev[IFNAMSIZ];
+    nfq_get_outdev_name(l_nlif, p_nfa, l_outdev);
+
+    nlif_close(l_nlif);
+
     m_log->info(
         "nfq event "
         "userId {} groupId {} protocol {} sourceAddress {} sourcePort {}"
-        " destinationAddress {} destinationPort {}",
+        " destinationAddress {} destinationPort {} hook {} indev {} outdev {}",
         l_nfq_event.m_user_id,
         l_nfq_event.m_group_id,
-        l_nfq_event.m_protocol,
+        ip_protocol_to_string(p_proto),
         ipv4_to_string(l_nfq_event.m_source_address),
         l_nfq_event.m_source_port,
         ipv4_to_string(l_nfq_event.m_destination_address),
-        l_nfq_event.m_destination_port
+        l_nfq_event.m_destination_port,
+        nf_hook_to_string(p_hook),
+        l_indev,
+        l_outdev
     );
+
+    /*
+    if (p_hook == nf_hook_t::IP_FORWARD) {
+        set_verdict(l_nfq_event.m_nfq_id, NF_ACCEPT);
+
+        return 0;
+    }
     */
 
     process_nfq_event(l_nfq_event, true);

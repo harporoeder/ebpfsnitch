@@ -13,7 +13,7 @@ add_executable (main main.cpp ebpfsnitch_daemon.cpp rule_engine.cpp misc.cpp)
 target_compile_definitions(main PRIVATE SPDLOG_FMT_EXTERNAL)
 
 target_link_libraries (main PRIVATE
-    bcc netfilter_queue pthread spdlog fmt
+    bcc netfilter_queue pthread spdlog fmt nfnetlink
 )
 
 target_link_libraries (main)

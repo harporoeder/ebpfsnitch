@@ -18,6 +18,25 @@ nanoseconds()
 }
 
 std::string
+nf_hook_to_string(const nf_hook_t p_hook)
+{
+    switch (p_hook) {
+        case nf_hook_t::IP_PRE_ROUTING:
+            return std::string("IP_PRE_ROUTING"); break;
+        case nf_hook_t::IP_LOCAL_IN:
+            return std::string("IP_LOCAL_IN"); break;
+        case nf_hook_t::IP_FORWARD:
+            return std::string("IP_FORWARD"); break;
+        case nf_hook_t::IP_LOCAL_OUT:
+            return std::string("IP_LOCAL_OUT"); break;
+        case nf_hook_t::IP_POST_ROUTING:
+            return std::string("IP_POST_ROUTING"); break;
+    }
+
+    return std::string("unknown");
+}
+
+std::string
 ip_protocol_to_string(const ip_protocol_t p_protocol)
 {
     switch (p_protocol) {

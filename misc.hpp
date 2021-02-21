@@ -1,5 +1,22 @@
 #pragma once
 
+// https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/netfilter_ipv4.h#L16
+enum class nf_hook_t : uint8_t {
+    // After promisc drops, checksum checks.
+    IP_PRE_ROUTING  = 0,
+    // If the packet is destined for this box.
+    IP_LOCAL_IN     = 1,
+    // If the packet is destined for another interface.
+    IP_FORWARD      = 2,
+    // Packets coming from a local process
+    IP_LOCAL_OUT    = 3,
+    // Packets about to hit the wire.
+    IP_POST_ROUTING = 4
+};
+
+std::string
+nf_hook_to_string(const nf_hook_t p_hook);
+
 struct probe_ipv4_event_t {
     void    *m_handle;
     bool     m_remove;
