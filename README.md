@@ -6,7 +6,7 @@ It is inspired by [OpenSnitch](https://github.com/evilsocket/opensnitch), and
 without a kernel module.
 
 The eBPFSnitch daemon is implemented in C++ 17. The control interface
-is implemented in Python3 utilizing Qt5.
+is implemented in Python 3 utilizing Qt5.
 
 ## Disclaimer
 
@@ -29,3 +29,18 @@ can be controlled independently of the base system or other containers.
 
 Additionally targeting can occur against specific system users. Blanket
 permissions for every instance of Firefox for every user are not required.
+
+## Dependencies
+
+### C++
+
+* pthread
+* bcc
+* netfilter_queue
+* spdlog
+* fmt
+* nfnetlink
+
+### Python 3
+
+* PyQT5
