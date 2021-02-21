@@ -53,6 +53,8 @@ struct nfq_event_t {
     uint64_t m_timestamp;
 };
 
+std::string nfq_event_to_string(const nfq_event_t &p_event);
+
 class iptables_raii {
 public:
     iptables_raii(std::shared_ptr<spdlog::logger> p_log);
@@ -153,6 +155,8 @@ private:
     );
 
     std::shared_ptr<iptables_raii> m_iptables_raii;
+
+    void set_verdict(const uint32_t p_id, const uint32_t p_verdict);
     
     std::thread m_filter_thread;
     std::thread m_probe_thread;

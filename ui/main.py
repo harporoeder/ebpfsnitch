@@ -16,7 +16,8 @@ class PromptDialog(QDialog):
         self.setWindowTitle("eBPFSnitch Dialog")
 
         message1 = QLabel("Application: " + question["executable"])
-        message2 = QLabel("Destination Port: " + str(question["destinationPort"]))
+        message2 = QLabel("Destination Address: " + question["destinationAddress"])
+        message3 = QLabel("Destination Port: " + str(question["destinationPort"]))
 
         allowButton = QPushButton("Allow")
         denyButton = QPushButton("Deny")
@@ -30,6 +31,7 @@ class PromptDialog(QDialog):
         self.layout = QVBoxLayout()
         self.layout.addWidget(message1)
         self.layout.addWidget(message2)
+        self.layout.addWidget(message3)
         self.layout.addWidget(allowButton)
         self.layout.addWidget(denyButton)
         self.setLayout(self.layout)

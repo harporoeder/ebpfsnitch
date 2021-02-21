@@ -107,7 +107,11 @@ m_shutdown(false)
         throw std::runtime_error("placeholder");
     }
 
-    const uint32_t l_queue_flags = NFQA_CFG_F_UID_GID | NFQA_CFG_F_GSO;
+    const uint32_t l_queue_flags =
+        NFQA_CFG_F_UID_GID |
+        NFQA_CFG_F_GSO     |
+        NFQA_CFG_F_CONNTRACK;
+
     const int l_flag_status = nfq_set_queue_flags(
         m_nfq_queue,
         l_queue_flags,
@@ -303,7 +307,7 @@ ebpfsnitch_daemon::bpf_reader(
         ipv4_to_string(l_info->m_destination_address);
 
     const std::string l_source_address =
-        ipv4_to_string(l_info->m_destination_address);
+        ipv4_to_string(l_info->m_source_address);
 
     const std::string l_path = 
         "/proc/" +
@@ -339,8 +343,11 @@ ebpfsnitch_daemon::bpf_reader(
     );
 
     const std::string l_key =
+        l_source_address +
         std::to_string(l_info->m_source_port) +
+        l_destination_address +
         std::to_string(l_info->m_destination_port);
+        
 
     struct connection_info_t l_info2;
     l_info2.m_user_id    = l_info->m_user_id;
@@ -383,31 +390,14 @@ ebpfsnitch_daemon::process_associated_event(
 
     if (l_verdict) {
         if (l_verdict.value()) {
-            m_log->info("verdict allow {}", l_info.m_executable);
+            // m_log->info("verdict allow {}", l_info.m_executable);
 
-            std::lock_guard<std::mutex> l_guard(m_response_lock);
-
-            nfq_set_verdict(
-                m_nfq_queue,
-                l_nfq_event.m_nfq_id,
-                NF_ACCEPT,
-                0,
-                NULL
-            );
+            set_verdict(l_nfq_event.m_nfq_id, NF_ACCEPT);
 
             return true;
         } else {
-            m_log->info("verdict deny {}", l_info.m_executable);
-
-            std::lock_guard<std::mutex> l_guard(m_response_lock);
-
-            nfq_set_verdict(
-                m_nfq_queue,
-                l_nfq_event.m_nfq_id,
-                NF_DROP,
-                0,
-                NULL
-            );
+            // m_log->info("verdict deny {}", l_info.m_executable);
+            set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
 
             return true;
         }
@@ -432,13 +422,13 @@ ebpfsnitch_daemon::process_nfq_event(
 
     if (p_queue_unassociated) {
         if (l_optional_info) {
-            m_log->info("process_nfq_event queueing undecided");
+            // m_log->info("process_nfq_event queueing undecided");
 
             std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
             m_undecided_packets.push(l_nfq_event);
 
         } else {
-            m_log->info("process_nfq_event queueing unassociated");
+            // m_log->info("process_nfq_event queueing unassociated");
 
             std::lock_guard<std::mutex> l_guard_undecided(
                 m_unassociated_packets_lock
@@ -476,25 +466,13 @@ ebpfsnitch_daemon::nfq_handler(
     l_nfq_event.m_user_id = 1337;
     l_nfq_event.m_group_id = 1337;
 
-    if (nfq_get_uid(p_nfa, &l_nfq_event.m_user_id) == 0) {
-        m_log->error("unknown nfq uid");
-        // std::lock_guard<std::mutex> l_guard(m_response_lock);
-        // return nfq_set_verdict(p_qh, l_nfq_event.m_nfq_id, NF_ACCEPT, 0, NULL);
-    }
-
-    if (nfq_get_gid(p_nfa,& l_nfq_event.m_group_id) == 0) {
-        m_log->error("unknown nfq gid");
-        // std::lock_guard<std::mutex> l_guard(m_response_lock);
-        // return nfq_set_verdict(p_qh, l_nfq_event.m_nfq_id, NF_ACCEPT, 0, NULL);
-    }
-
     unsigned char *l_data = NULL;
     const int l_ret = nfq_get_payload(p_nfa, &l_data);
 
     if (l_ret < 24) {
-        m_log->error("unknown allowing malformed");
-        std::lock_guard<std::mutex> l_guard(m_response_lock);
-        return nfq_set_verdict(p_qh, l_nfq_event.m_nfq_id, NF_ACCEPT, 0, NULL);
+        m_log->error("unknown dropping malformed");
+        set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
+        return 0;
     }
 
     l_nfq_event.m_protocol = *((uint8_t*) (l_data + 9));
@@ -503,13 +481,13 @@ ebpfsnitch_daemon::nfq_handler(
         static_cast<ip_protocol_t>(l_nfq_event.m_protocol);
 
     if (p_proto != ip_protocol_t::TCP) {
-        std::lock_guard<std::mutex> l_guard(m_response_lock);
         m_log->error(
             "unknown allowing unhandled protocol {} {}",
             ip_protocol_to_string(p_proto),
             l_nfq_event.m_protocol
         );
-        return nfq_set_verdict(p_qh, l_nfq_event.m_nfq_id, NF_ACCEPT, 0, NULL);
+        set_verdict(l_nfq_event.m_nfq_id, NF_ACCEPT);
+        return 0;
     }
 
     l_nfq_event.m_source_address      = *((uint32_t*) (l_data + 12));
@@ -518,6 +496,23 @@ ebpfsnitch_daemon::nfq_handler(
     l_nfq_event.m_destination_port    = ntohs(*((uint16_t*) (l_data + 22)));
     l_nfq_event.m_timestamp           = nanoseconds();
 
+    if ((nfq_get_skbinfo(p_nfa) & NFQA_SKB_GSO) != 0){
+        m_log->error("NFQA_SKB_GSO {}", nfq_event_to_string(l_nfq_event));
+    }
+
+    if (nfq_get_uid(p_nfa, &l_nfq_event.m_user_id) == 0) {
+        // m_log->error("unknown nfq uid {}", nfq_event_to_string(l_nfq_event));
+        // set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
+        // return 0;
+    }
+
+    if (nfq_get_gid(p_nfa,& l_nfq_event.m_group_id) == 0) {
+        // m_log->error("unknown nfq gid");
+        // set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
+        // return 0;
+    }
+
+    /*
     m_log->info(
         "nfq event "
         "userId {} groupId {} protocol {} sourceAddress {} sourcePort {}"
@@ -530,6 +525,7 @@ ebpfsnitch_daemon::nfq_handler(
         ipv4_to_string(l_nfq_event.m_destination_address),
         l_nfq_event.m_destination_port
     );
+    */
 
     process_nfq_event(l_nfq_event, true);
 
@@ -554,7 +550,10 @@ ebpfsnitch_daemon::nfq_handler_indirect(
 std::optional<struct connection_info_t>
 ebpfsnitch_daemon::lookup_connection_info(const nfq_event_t &p_event)
 {
-    const std::string l_key = std::to_string(p_event.m_source_port) +
+    const std::string l_key =
+        ipv4_to_string(p_event.m_source_address) +
+        std::to_string(p_event.m_source_port) +
+        ipv4_to_string(p_event.m_destination_address) +
         std::to_string(p_event.m_destination_port);
 
     std::lock_guard<std::mutex> l_guard(m_lock);
@@ -684,6 +683,8 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
         if (!l_optional_info) {
             m_log->error("handle_control has no connection info");
 
+            set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
+
             std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
             m_undecided_packets.pop();
 
@@ -693,11 +694,15 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
         const struct connection_info_t l_info = l_optional_info.value();
 
         const nlohmann::json l_json = {
-            { "executable",      l_info.m_executable            },
-            { "userId",          l_nfq_event.m_user_id          },
-            { "processId",       l_info.m_process_id            },
-            { "sourcePort",      l_nfq_event.m_source_port      },
-            { "destinationPort", l_nfq_event.m_destination_port }
+            { "executable",         l_info.m_executable            },
+            { "userId",             l_nfq_event.m_user_id          },
+            { "processId",          l_info.m_process_id            },
+            { "sourceAddress",
+                ipv4_to_string(l_nfq_event.m_source_address)       },
+            { "sourcePort",         l_nfq_event.m_source_port      },
+            { "destinationPort",    l_nfq_event.m_destination_port },
+            { "destinationAddress",
+                ipv4_to_string(l_nfq_event.m_destination_address)  },
         };
 
         const std::string l_json_serialized = l_json.dump() + "\n";
@@ -774,9 +779,22 @@ ebpfsnitch_daemon::process_unassociated()
                 m_undecided_packets.push(l_nfq_event);
             }
         } else {
-            m_log->info("still unassociated");
+            // two seconds
+            if (nanoseconds() < (l_nfq_event.m_timestamp + 2000000000 )) {
+                m_log->info(
+                    "dropping still unassociated {}",
+                    nfq_event_to_string(l_nfq_event)
+                );
 
-            l_remaining.push(l_nfq_event);
+                set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
+            } else {
+                m_log->info(
+                    "still unassociated {}",
+                    nfq_event_to_string(l_nfq_event)
+                );
+
+                l_remaining.push(l_nfq_event);    
+            }
         }
 
         m_unassociated_packets.pop();
@@ -849,4 +867,35 @@ ipv4_to_string(const uint32_t p_address)
     }
 
     return std::string(l_buffer);
+}
+
+std::string
+nfq_event_to_string(const nfq_event_t &p_event)
+{
+    return
+        "userId "              + std::to_string(p_event.m_user_id) +
+        " groupId "            + std::to_string(p_event.m_group_id) +
+        " sourceAddress "      + ipv4_to_string(p_event.m_source_address) +
+        " sourcePort "         + std::to_string(p_event.m_source_port) +
+        " destinationAddress " + ipv4_to_string(p_event.m_destination_address) +
+        " destinationPort "    + std::to_string(p_event.m_destination_port) +
+        " timestamp "          + std::to_string(p_event.m_timestamp);
+}
+
+void
+ebpfsnitch_daemon::set_verdict(const uint32_t p_id, const uint32_t p_verdict)
+{
+    std::lock_guard<std::mutex> l_guard(m_response_lock);
+
+    const int l_status = nfq_set_verdict(
+        m_nfq_queue,
+        p_id,
+        p_verdict,
+        0,
+        NULL
+    );
+
+    if (l_status < 0) {
+        throw std::runtime_error("nfq_set_verdict failed");
+    }
 }
