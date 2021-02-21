@@ -32,15 +32,12 @@ permissions for every instance of Firefox for every user are not required.
 
 ## Dependencies
 
-### C++
+C++:
+[pthread](https://man7.org/linux/man-pages/man7/pthreads.7.html),
+[bcc](https://github.com/iovisor/bcc),
+[netfilter_queue](http://www.netfilter.org/projects/libnetfilter_queue/),
+[spdlog](https://github.com/gabime/spdlog),
+[fmt](https://github.com/fmtlib/fmt)
+[nfnetlink](https://www.netfilter.org/projects/libnfnetlink/index.html)
 
-* pthread
-* bcc
-* netfilter_queue
-* spdlog
-* fmt
-* nfnetlink
-
-### Python 3
-
-* PyQT5
+Python: [PyQT5](https://pypi.org/project/PyQt5/)
