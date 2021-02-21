@@ -22,6 +22,8 @@ class PromptDialog(QDialog):
         allowButton = QPushButton("Allow")
         denyButton = QPushButton("Deny")
 
+        self.forAll = QCheckBox("All Destination Addresses")
+
         allowButton.clicked.connect(self.accept)
         denyButton.clicked.connect(self.reject)
 
@@ -32,6 +34,7 @@ class PromptDialog(QDialog):
         self.layout.addWidget(message1)
         self.layout.addWidget(message2)
         self.layout.addWidget(message3)
+        self.layout.addWidget(self.forAll)
         self.layout.addWidget(allowButton)
         self.layout.addWidget(denyButton)
         self.setLayout(self.layout)
@@ -60,6 +63,7 @@ class MainWindow(QMainWindow):
     def on_prompt_trigger(self):        
         dlg = PromptDialog(self._question)
         self._allow = bool(dlg.exec_())
+        self._forAll = dlg.forAll.isChecked()
         self._done.set()
 
     def handle_prompt(self, question):
@@ -67,7 +71,10 @@ class MainWindow(QMainWindow):
         self._question = question
         self._prompt_trigger.emit()
         self._done.wait()
-        return self._allow
+        return {
+            "allow": self._allow,
+            "forAll": self._forAll
+        }
 
 app = QApplication(sys.argv)
 app.setQuitOnLastWindowClosed(False)
@@ -105,8 +112,10 @@ async def daemon_client():
         parsed = json.loads(line)
         print(parsed["executable"])
 
+        result = window.handle_prompt(parsed)
+
         command = {
-            "allow": window.handle_prompt(parsed),
+            "allow": result["allow"],
             "clauses": [
                 {
                     "field": "executable",
@@ -114,6 +123,14 @@ async def daemon_client():
                 }
             ]
         }
+
+        if result["forAll"] == False:
+            command["clauses"].append(
+                {
+                    "field": "destinationAddress",
+                    "value": parsed["destinationAddress"]
+                }
+            )
 
         serialized = str.encode(json.dumps(command) + "\n")
 

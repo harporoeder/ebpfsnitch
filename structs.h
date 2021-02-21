@@ -29,3 +29,6 @@ struct nfq_event_t {
     uint8_t  m_protocol;
     uint64_t m_timestamp;
 };
+
+std::string
+ipv4_to_string(const uint32_t p_address);

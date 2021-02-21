@@ -44,6 +44,15 @@ rule_engine_t::get_verdict(
 
                     break;
                 }
+            } else if (l_clause.m_field == "destinationAddress") {
+                const std::string l_addr =
+                    ipv4_to_string(p_nfq_event.m_destination_address);
+
+                if (l_clause.m_value != l_addr) {
+                    l_match = false;
+
+                    break;
+                }
             }
         }
 

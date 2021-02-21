@@ -41,9 +41,6 @@ nanoseconds()
 std::string
 file_to_string(const std::string &p_path);
 
-std::string
-ipv4_to_string(const uint32_t p_address);
-
 iptables_raii::iptables_raii(std::shared_ptr<spdlog::logger> p_log):
     m_log(p_log)
 {
