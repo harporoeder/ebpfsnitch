@@ -766,20 +766,20 @@ ebpfsnitch_daemon::process_unassociated()
     std::lock_guard<std::mutex> l_guard(m_unassociated_packets_lock);
 
     while (m_unassociated_packets.size()) {
-        struct nfq_event_t l_event = m_unassociated_packets.front(); 
+        struct nfq_event_t l_nfq_event = m_unassociated_packets.front(); 
 
         const std::optional<struct connection_info_t> l_optional_info =
-            lookup_connection_info(l_event);
+            lookup_connection_info(l_nfq_event);
 
         if (l_optional_info) {
             struct connection_info_t l_info = l_optional_info.value();
 
-            if (!process_associated_event(l_event, l_info)) {
+            if (!process_associated_event(l_nfq_event, l_info)) {
                 {
                     std::lock_guard<std::mutex> l_guard2(
                         m_undecided_packets_lock
                     );
-                    m_undecided_packets.push(l_event);
+                    m_undecided_packets.push(l_nfq_event);
                 }
     
                 {
@@ -787,8 +787,8 @@ ebpfsnitch_daemon::process_unassociated()
                     l_event.m_executable       = l_info.m_executable;
                     l_event.m_user_id          = l_info.m_user_id;
                     l_event.m_process_id       = l_info.m_process_id;
-                    l_event.m_source_port      = l_event.m_source_port;
-                    l_event.m_destination_port = l_event.m_destination_port;
+                    l_event.m_source_port      = l_nfq_event.m_source_port;
+                    l_event.m_destination_port = l_nfq_event.m_destination_port;
 
                     std::lock_guard<std::mutex> l_guard2(m_events_lock);
 
@@ -803,7 +803,7 @@ ebpfsnitch_daemon::process_unassociated()
         } else {
             m_log->info("still unassociated");
 
-            l_remaining.push(l_event);
+            l_remaining.push(l_nfq_event);
         }
 
         m_unassociated_packets.pop();
