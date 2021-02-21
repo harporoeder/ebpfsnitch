@@ -53,6 +53,14 @@ rule_engine_t::get_verdict(
 
                     break;
                 }
+            } else if (l_clause.m_field == "destinationPort") {
+                if (l_clause.m_value !=
+                    std::to_string(p_nfq_event.m_destination_port))
+                {
+                    l_match = false;
+
+                    break;
+                }
             }
         }
 

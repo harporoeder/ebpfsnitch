@@ -22,7 +22,8 @@ class PromptDialog(QDialog):
         allowButton = QPushButton("Allow")
         denyButton = QPushButton("Deny")
 
-        self.forAll = QCheckBox("All Destination Addresses")
+        self.forAllAddress = QCheckBox("All Destination Addresses")
+        self.forAllPort = QCheckBox("All Destination Ports")
 
         allowButton.clicked.connect(self.accept)
         denyButton.clicked.connect(self.reject)
@@ -34,7 +35,8 @@ class PromptDialog(QDialog):
         self.layout.addWidget(message1)
         self.layout.addWidget(message2)
         self.layout.addWidget(message3)
-        self.layout.addWidget(self.forAll)
+        self.layout.addWidget(self.forAllAddress)
+        self.layout.addWidget(self.forAllPort)
         self.layout.addWidget(allowButton)
         self.layout.addWidget(denyButton)
         self.setLayout(self.layout)
@@ -63,7 +65,8 @@ class MainWindow(QMainWindow):
     def on_prompt_trigger(self):        
         dlg = PromptDialog(self._question)
         self._allow = bool(dlg.exec_())
-        self._forAll = dlg.forAll.isChecked()
+        self._forAllAddress = dlg.forAllAddress.isChecked()
+        self._forAllPort = dlg.forAllPort.isChecked()
         self._done.set()
 
     def handle_prompt(self, question):
@@ -73,7 +76,8 @@ class MainWindow(QMainWindow):
         self._done.wait()
         return {
             "allow": self._allow,
-            "forAll": self._forAll
+            "forAllAddress": self._forAllAddress,
+            "forAllPort": self._forAllPort
         }
 
 app = QApplication(sys.argv)
@@ -124,11 +128,19 @@ async def daemon_client():
             ]
         }
 
-        if result["forAll"] == False:
+        if result["forAllAddress"] == False:
             command["clauses"].append(
                 {
                     "field": "destinationAddress",
                     "value": parsed["destinationAddress"]
+                }
+            )
+
+        if result["forAllPort"] == False:
+            command["clauses"].append(
+                {
+                    "field": "destinationPort",
+                    "value": str(parsed["destinationPort"])
                 }
             )
 
