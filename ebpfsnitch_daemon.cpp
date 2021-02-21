@@ -431,28 +431,9 @@ ebpfsnitch_daemon::process_nfq_event(
         if (l_optional_info) {
             m_log->info("process_nfq_event queueing undecided");
 
-            const struct connection_info_t l_info = l_optional_info.value();
+            std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
+            m_undecided_packets.push(l_nfq_event);
 
-            struct event_t l_event;
-            l_event.m_executable       = l_info.m_executable;
-            l_event.m_user_id          = l_info.m_user_id;
-            l_event.m_process_id       = l_info.m_process_id;
-            l_event.m_source_port      = l_nfq_event.m_source_port;
-            l_event.m_destination_port = l_nfq_event.m_destination_port;
-
-            {
-                std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
-                m_undecided_packets.push(l_nfq_event);
-            }
-
-            std::lock_guard<std::mutex> l_guard_1(m_events_lock);
-
-            if (m_active_queries.find(l_info.m_executable)
-                == m_active_queries.end()
-            ) {
-                m_events.push(l_event);
-                m_active_queries.insert(l_info.m_executable);
-            }
         } else {
             m_log->info("process_nfq_event queueing unassociated");
 
@@ -680,24 +661,38 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
             break;
         }
 
-        struct event_t l_event;
+        struct nfq_event_t l_nfq_event;
         
         {
-            std::lock_guard<std::mutex> l_guard(m_events_lock);
+            std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
 
-            if (m_events.size() == 0) {
+            if (m_undecided_packets.size() == 0) {
                 continue;
             }
 
-            l_event = m_events.front();
+            l_nfq_event = m_undecided_packets.front();
         }
 
+        const std::optional<struct connection_info_t> l_optional_info =
+            lookup_connection_info(l_nfq_event);
+
+        if (!l_optional_info) {
+            m_log->error("handle_control has no connection info");
+
+            std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
+            m_undecided_packets.pop();
+
+            continue;
+        }
+
+        const struct connection_info_t l_info = l_optional_info.value();
+
         const nlohmann::json l_json = {
-            { "executable",      l_event.m_executable       },
-            { "userId",          l_event.m_user_id          },
-            { "processId",       l_event.m_process_id       },
-            { "sourcePort",      l_event.m_source_port      },
-            { "destinationPort", l_event.m_destination_port }
+            { "executable",      l_info.m_executable            },
+            { "userId",          l_nfq_event.m_user_id          },
+            { "processId",       l_info.m_process_id            },
+            { "sourcePort",      l_nfq_event.m_source_port      },
+            { "destinationPort", l_nfq_event.m_destination_port }
         };
 
         const std::string l_json_serialized = l_json.dump() + "\n";
@@ -736,18 +731,10 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
         m_log->info("got command |{}|", l_line);
 
         nlohmann::json l_verdict = nlohmann::json::parse(l_line);
-
-        {
-            std::lock_guard<std::mutex> l_guard(m_events_lock);
-            m_events.pop();
-        }
-
+    
         {
             std::lock_guard<std::mutex> l_guard(m_verdicts_lock);
             m_verdicts[l_verdict["executable"]] = l_verdict["allow"];
-            
-            std::lock_guard<std::mutex> l_guard2(m_events_lock);
-            m_active_queries.erase(l_verdict["executable"]);
         }
 
         process_unhandled();
@@ -775,30 +762,11 @@ ebpfsnitch_daemon::process_unassociated()
             struct connection_info_t l_info = l_optional_info.value();
 
             if (!process_associated_event(l_nfq_event, l_info)) {
-                {
-                    std::lock_guard<std::mutex> l_guard2(
-                        m_undecided_packets_lock
-                    );
-                    m_undecided_packets.push(l_nfq_event);
-                }
-    
-                {
-                    struct event_t l_event;
-                    l_event.m_executable       = l_info.m_executable;
-                    l_event.m_user_id          = l_info.m_user_id;
-                    l_event.m_process_id       = l_info.m_process_id;
-                    l_event.m_source_port      = l_nfq_event.m_source_port;
-                    l_event.m_destination_port = l_nfq_event.m_destination_port;
+                std::lock_guard<std::mutex> l_guard2(
+                    m_undecided_packets_lock
+                );
 
-                    std::lock_guard<std::mutex> l_guard2(m_events_lock);
-
-                    if (m_active_queries.find(l_info.m_executable)
-                        == m_active_queries.end()
-                    ) {
-                        m_events.push(l_event);
-                        m_active_queries.insert(l_info.m_executable);
-                    }
-                }
+                m_undecided_packets.push(l_nfq_event);
             }
         } else {
             m_log->info("still unassociated");

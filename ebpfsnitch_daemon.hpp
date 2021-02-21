@@ -41,14 +41,6 @@ struct connection_info_t {
     std::string m_executable;
 };
 
-struct event_t {
-    std::string m_executable;
-    uint32_t    m_user_id;
-    uint32_t    m_process_id;
-    uint16_t    m_source_port;
-    uint16_t    m_destination_port;
-};
-
 struct nfq_event_t {
     uint32_t m_user_id;
     uint32_t m_group_id;
@@ -152,10 +144,6 @@ private:
     lookup_connection_info(const nfq_event_t &p_event);
 
     std::atomic<bool> m_shutdown;
-
-    std::mutex m_events_lock;
-    std::queue<struct event_t> m_events;
-    std::unordered_set<std::string> m_active_queries;
 
     std::mutex m_verdicts_lock;
     std::unordered_map<std::string, bool> m_verdicts;
