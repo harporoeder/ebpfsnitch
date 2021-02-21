@@ -108,9 +108,10 @@ tray.setContextMenu(menu)
 
 async def daemon_client():
     reader, writer = await asyncio.open_unix_connection("/tmp/ebpfsnitch.sock")
+    print("connected to daemon")
 
     while True:
-        line = await reader.readline()
+        line = await reader.readuntil(separator=b'\n')
         line = line.decode()
         print(line)
         parsed = json.loads(line)
@@ -153,12 +154,24 @@ async def daemon_client():
     writer.close()
     await writer.wait_closed()
 
+async def daemon_client_supervisor():
+    while True:
+        try:
+            await daemon_client()
+        except ConnectionRefusedError as err:
+            print(repr(err))
+        except asyncio.IncompleteReadError as err:
+            print(repr(err))
+
+        print("retrying connection in one second")
+        await asyncio.sleep(1)
+
 loop = asyncio.get_event_loop()
 
 def thread_function():
     print("start thread")
     try:
-        loop.run_until_complete(daemon_client())
+        loop.run_until_complete(daemon_client_supervisor())
     except Exception as err:
         print("network error: " + repr(err))
     finally:
