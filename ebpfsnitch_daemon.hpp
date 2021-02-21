@@ -6,11 +6,14 @@
 #include <queue>
 #include <optional>
 #include <memory>
+#include <condition_variable>
 
 #include <bcc/bcc_version.h>
 #include <bcc/BPF.h>
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <spdlog/spdlog.h>
+
+extern std::condition_variable g_shutdown;
 
 enum class ip_protocol_t : uint8_t {
     ICMP = 1,
