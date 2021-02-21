@@ -1,9 +1,12 @@
-# ebpfsnitch
+# eBPFSnitch
 
-ebpfsnitch is a Linux Application Level Firewall based on eBPF and NFQUEUE.
+eBPFSnitch is a Linux Application Level Firewall based on eBPF and NFQUEUE.
 It is inspired by [OpenSnitch](https://github.com/evilsocket/opensnitch), and
 [Douane](https://douaneapp.com/), but utilizing modern kernel abstractions,
 without a kernel module.
+
+The eBPFSnitch daemon is implemented in C++ 17. The control interface
+is implemented in Python3 utilizing Qt5.
 
 ## Disclaimer
 
@@ -15,7 +18,7 @@ user interface to self authorize.
 
 ## Features
 
-ebpfsnitch currently only supports filtering outgoing IPv4 TCP connections,
+eBPFSnitch currently only supports filtering outgoing IPv4 TCP connections,
 everything else is allowed through by default. Filtering for ICPM, and UDP
 should be supported in the near future. Other protocols may eventually
 get blanket authorization support.
