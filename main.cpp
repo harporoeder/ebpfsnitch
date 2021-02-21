@@ -32,7 +32,6 @@ std::shared_ptr<ebpfsnitch_daemon> g_daemon;
 std::condition_variable g_shutdown;
 std::mutex g_shutdown_mutex;
 
-
 static void
 signal_handler(const int p_sig);
 
@@ -384,8 +383,6 @@ ebpfsnitch_daemon::process_nfq_event(
     const struct nfq_event_t &l_nfq_event,
     const bool                p_queue_unassociated
 ) {
-    m_log->info("process_nfq_event");
-
     const std::optional<struct connection_info_t> l_optional_info =
         lookup_connection_info(l_nfq_event);
 
@@ -464,6 +461,18 @@ ebpfsnitch_daemon::process_nfq_event(
     return false;
 }
 
+std::string
+ip_protocol_to_string(const ip_protocol_t p_protocol)
+{
+    switch (p_protocol) {
+        case ip_protocol_t::ICMP: return std::string("ICMP"); break;
+        case ip_protocol_t::TCP:  return std::string("TCP");  break;
+        case ip_protocol_t::UDP:  return std::string("UDP");  break;
+    }
+
+    return std::string("unknown");
+}
+
 int
 ebpfsnitch_daemon::nfq_handler(
     struct nfq_q_handle *const p_qh,
@@ -474,17 +483,19 @@ ebpfsnitch_daemon::nfq_handler(
 
     struct nfq_event_t l_nfq_event;
     l_nfq_event.m_nfq_id = ntohl(l_header->packet_id);
+    l_nfq_event.m_user_id = 1337;
+    l_nfq_event.m_group_id = 1337;
 
     if (nfq_get_uid(p_nfa, &l_nfq_event.m_user_id) == 0) {
-        m_log->error("unknown allowing no uid");
-        std::lock_guard<std::mutex> l_guard(m_response_lock);
-        return nfq_set_verdict(p_qh, l_nfq_event.m_nfq_id, NF_ACCEPT, 0, NULL);
+        m_log->error("unknown nfq uid");
+        // std::lock_guard<std::mutex> l_guard(m_response_lock);
+        // return nfq_set_verdict(p_qh, l_nfq_event.m_nfq_id, NF_ACCEPT, 0, NULL);
     }
 
     if (nfq_get_gid(p_nfa,& l_nfq_event.m_group_id) == 0) {
-        m_log->error("unknown allowing no gid");
-        std::lock_guard<std::mutex> l_guard(m_response_lock);
-        return nfq_set_verdict(p_qh, l_nfq_event.m_nfq_id, NF_ACCEPT, 0, NULL);
+        m_log->error("unknown nfq gid");
+        // std::lock_guard<std::mutex> l_guard(m_response_lock);
+        // return nfq_set_verdict(p_qh, l_nfq_event.m_nfq_id, NF_ACCEPT, 0, NULL);
     }
 
     unsigned char *l_data = NULL;
@@ -498,21 +509,37 @@ ebpfsnitch_daemon::nfq_handler(
 
     l_nfq_event.m_protocol = *((uint8_t*) (l_data + 9));
 
+    const ip_protocol_t p_proto =
+        static_cast<ip_protocol_t>(l_nfq_event.m_protocol);
+
     if (l_nfq_event.m_protocol != 6) {
-        m_log->info(
-            "allowing unknown protocol "
-            "userId {} groupId {} protocol {}",
-            l_nfq_event.m_user_id,
-            l_nfq_event.m_group_id,
+        std::lock_guard<std::mutex> l_guard(m_response_lock);
+        m_log->error(
+            "unknown allowing unhandled protocol {} {}",
+            ip_protocol_to_string(p_proto),
             l_nfq_event.m_protocol
         );
-
-        std::lock_guard<std::mutex> l_guard(m_response_lock);
         return nfq_set_verdict(p_qh, l_nfq_event.m_nfq_id, NF_ACCEPT, 0, NULL);
     }
 
+    l_nfq_event.m_source_address      =  *((uint32_t*) (l_data + 12));
+    l_nfq_event.m_destination_address =  *((uint32_t*) (l_data + 16));
+
     l_nfq_event.m_source_port      = ntohs(*((uint16_t*) (l_data + 20)));
     l_nfq_event.m_destination_port = ntohs(*((uint16_t*) (l_data + 22)));
+    
+    m_log->info(
+        "nfq event "
+        "userId {} groupId {} protocol {} sourceAddress {} sourcePort {}"
+        " destinationAddress {} destinationPort {}",
+        l_nfq_event.m_user_id,
+        l_nfq_event.m_group_id,
+        l_nfq_event.m_protocol,
+        ipv4_to_string(l_nfq_event.m_source_address),
+        l_nfq_event.m_source_port,
+        ipv4_to_string(l_nfq_event.m_destination_address),
+        l_nfq_event.m_destination_port
+    );
 
     process_nfq_event(l_nfq_event, true);
 
