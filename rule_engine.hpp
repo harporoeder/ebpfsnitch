@@ -5,7 +5,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "structs.h"
+#include "misc.hpp"
 
 class rule_engine_t {
 public:

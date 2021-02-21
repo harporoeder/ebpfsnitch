@@ -13,7 +13,7 @@
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <spdlog/spdlog.h>
 
-#include "structs.h"
+#include "misc.hpp"
 #include "rule_engine.hpp"
 
 extern std::condition_variable g_shutdown;
