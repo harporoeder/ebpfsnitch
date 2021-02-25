@@ -34,7 +34,7 @@ permissions for every instance of Firefox for every user are not required.
 
 C++:
 [pthread](https://man7.org/linux/man-pages/man7/pthreads.7.html),
-[libbpf](https://github.com/libbpf/libbpf,
+[libbpf](https://github.com/libbpf/libbpf),
 [netfilter_queue](http://www.netfilter.org/projects/libnetfilter_queue/),
 [spdlog](https://github.com/gabime/spdlog),
 [fmt](https://github.com/fmtlib/fmt)
