@@ -34,10 +34,15 @@ permissions for every instance of Firefox for every user are not required.
 
 C++:
 [pthread](https://man7.org/linux/man-pages/man7/pthreads.7.html),
-[bcc](https://github.com/iovisor/bcc),
+[libbpf](https://github.com/libbpf/libbpf,
 [netfilter_queue](http://www.netfilter.org/projects/libnetfilter_queue/),
 [spdlog](https://github.com/gabime/spdlog),
 [fmt](https://github.com/fmtlib/fmt)
 [nfnetlink](https://www.netfilter.org/projects/libnfnetlink/index.html)
 
 Python: [PyQT5](https://pypi.org/project/PyQt5/)
+
+## System requirements
+
+eBPFSnitch currently requires a recent kernel. The minimum supported version
+is Linux 5.8. This required version may be lowered in the future.
