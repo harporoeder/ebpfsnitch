@@ -45,18 +45,17 @@ signal_pipe(const int p_sig)
 }
 
 static void
-set_rlimit()
+set_limits()
 {
-    struct rlimit rlim_new = {
-        .rlim_cur	= RLIM_INFINITY,
-        .rlim_max	= RLIM_INFINITY,
+    struct rlimit l_limit = {
+        .rlim_cur = RLIM_INFINITY,
+        .rlim_max = RLIM_INFINITY,
     };
 
-    if (setrlimit(RLIMIT_MEMLOCK, &rlim_new)) {
-        g_log->error("failed to set limits");
+    if (setrlimit(RLIMIT_MEMLOCK, &l_limit)) {
+        throw std::runtime_error("failed to set limits");
     }
 }
-
 
 int
 main()
@@ -64,12 +63,12 @@ main()
     g_log = spdlog::stdout_color_mt("console");
     g_log->set_level(spdlog::level::trace);
 
-    set_rlimit();
-
     signal(SIGINT, signal_handler); 
     signal(SIGPIPE, signal_pipe);
 
     try {
+        set_limits();
+
         const auto l_daemon = std::make_shared<ebpfsnitch_daemon>(g_log);
 
         std::unique_lock<std::mutex> l_lock(g_shutdown_mutex);
