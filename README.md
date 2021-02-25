@@ -56,6 +56,7 @@ pacman -S python3 python-pyqt5 clang cmake bpf libnetfilter_queue spdlog git
 git clone https://github.com/harporoeder/ebpfsnitch.git
 cd ebpfsnitch
 mkdir build
+cd build
 cmake ..
 make
 ```
