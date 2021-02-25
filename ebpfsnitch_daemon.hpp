@@ -16,6 +16,7 @@
 
 #include "misc.hpp"
 #include "rule_engine.hpp"
+#include "bpf_wrapper.hpp"
 
 extern std::condition_variable g_shutdown;
 
@@ -114,6 +115,7 @@ private:
     lookup_connection_info(const nfq_event_t &p_event);
 
     std::atomic<bool> m_shutdown;
+    bpf_wrapper_object m_bpf_wrapper;
 
     std::mutex m_verdicts_lock;
     std::unordered_map<std::string, bool> m_verdicts;

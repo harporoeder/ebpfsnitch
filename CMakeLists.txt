@@ -45,6 +45,7 @@ add_executable(
     ebpfsnitch_daemon.cpp
     rule_engine.cpp
     misc.cpp
+    bpf_wrapper.cpp
 )
 
 target_compile_definitions(main PRIVATE SPDLOG_FMT_EXTERNAL)

@@ -44,8 +44,8 @@ signal_pipe(const int p_sig)
     g_log->error("SIGPIPE");
 }
 
-static
-void set_rlimit()
+static void
+set_rlimit()
 {
     struct rlimit rlim_new = {
         .rlim_cur	= RLIM_INFINITY,

@@ -47,117 +47,44 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
     std::shared_ptr<spdlog::logger> p_log
 ):
 m_log(p_log),
-m_shutdown(false)
+m_shutdown(false),
+m_bpf_wrapper("./CMakeFiles/probes.dir/probes.c.o")
 {
     m_log->trace("ebpfsnitch_daemon constructor");
     
-    m_log->trace("loading ebpf object file");
+    m_log->trace("setting up ebpf");
 
-    struct bpf_object *l_obj = bpf_object__open(
-        "./CMakeFiles/probes.dir/probes.c.o"
+    m_bpf_wrapper.attach_kprobe(
+        "msend",
+        "security_socket_sendmsg",
+        false
     );
 
-    if (l_obj == NULL) {
-        std::cout << "bpf_object__open failed" << std::endl;
-
-        throw std::runtime_error("placeholder");
-    }
-
-    if (bpf_object__load(l_obj) != 0) {
-        std::cout << "load failed" << std::endl;
-
-        throw std::runtime_error("placeholder");
-    }
-
-    struct bpf_program *l_hook = bpf_object__find_program_by_name(
-        l_obj,
-        "msend"
+    m_bpf_wrapper.attach_kprobe(
+        "msendret",
+        "security_socket_sendmsg",
+        true
     );
 
-    if (l_hook == NULL) {
-        std::cout << "hook is NULL" << std::endl;
-
-        throw std::runtime_error("placeholder");
-    }
-
-    struct bpf_link *l_link =
-        bpf_program__attach_kprobe(l_hook, false, "security_socket_sendmsg");
-
-    if (l_link == NULL) {
-        std::cout << "link failed" << std::endl;
-
-        throw std::runtime_error("placeholder");
-    }
-
-    struct bpf_program *l_hook4 = bpf_object__find_program_by_name(
-        l_obj,
-        "msendret"
+    m_bpf_wrapper.attach_kprobe(
+        "msend2",
+        "tcp_v4_connect",
+        false
     );
 
-    if (l_hook4 == NULL) {
-        std::cout << "hook is NULL" << std::endl;
-
-        throw std::runtime_error("placeholder");
-    }
-
-    struct bpf_link *l_link4 =
-        bpf_program__attach_kprobe(l_hook4, true, "security_socket_sendmsg");
-
-    if (l_link4 == NULL) {
-        std::cout << "link failed" << std::endl;
-
-        throw std::runtime_error("placeholder");
-    }
-
-    struct bpf_program *l_hook2 = bpf_object__find_program_by_name(
-        l_obj,
-        "msend2"
+    m_bpf_wrapper.attach_kprobe(
+        "msend2ret",
+        "tcp_v4_connect",
+        true
     );
-
-    if (l_hook2 == NULL) {
-        std::cout << "hook is NULL" << std::endl;
-
-        throw std::runtime_error("placeholder");
-    }
-
-    struct bpf_link *l_link2 =
-        bpf_program__attach_kprobe(l_hook2, false, "tcp_v4_connect");
-
-    if (l_link2 == NULL) {
-        std::cout << "link failed" << std::endl;
-
-        throw std::runtime_error("placeholder");
-    }
-
-    struct bpf_program *l_hook3 = bpf_object__find_program_by_name(
-        l_obj,
-        "msend2ret"
-    );
-
-    if (l_hook3 == NULL) {
-        std::cout << "hook is NULL" << std::endl;
-
-        throw std::runtime_error("placeholder");
-    }
-
-    struct bpf_link *l_link3 =
-        bpf_program__attach_kprobe(l_hook3, true, "tcp_v4_connect");
-
-    if (l_link3 == NULL) {
-        std::cout << "link failed" << std::endl;
-
-        throw std::runtime_error("placeholder");
-    }
 
     int l_buffer_map_fd = bpf_object__find_map_fd_by_name(
-        l_obj,
+        m_bpf_wrapper.m_object,
         "g_probe_ipv4_events"
     );
 
     if (l_buffer_map_fd < 0) {
-        std::cout << "get fd failed" << std::endl;
-
-        throw std::runtime_error("placeholder");
+        throw std::runtime_error("bpf_object__find_map_fd_by_name() failed");
     }
 
     m_ring_buffer = ring_buffer__new(
@@ -168,28 +95,21 @@ m_shutdown(false)
     );
 
     if (m_ring_buffer == NULL) {
-        std::cout << "failed to create ring buffer" << std::endl;
-
-        throw std::runtime_error("placeholder");
+        throw std::runtime_error("ring_buffer__new() failed");
     }
     
     m_nfq_handle = nfq_open();
-    if (m_nfq_handle == NULL) {
-        m_log->error("nfq_open() failed");
 
-        throw std::runtime_error("placeholder");
+    if (m_nfq_handle == NULL) {
+        throw std::runtime_error("nfq_open() failed");
     }
 
     if (nfq_unbind_pf(m_nfq_handle, AF_INET) < 0) {
-        m_log->error("nfq_unbind_pf() failed");
-
-        throw std::runtime_error("placeholder");
+        throw std::runtime_error("nfq_unbind_pf() failed");
     }
 
     if (nfq_bind_pf(m_nfq_handle, AF_INET) < 0) {
-        m_log->error("nfq_bind_pf() failed");
-
-        throw std::runtime_error("placeholder");
+        throw std::runtime_error("nfq_bind_pf() failed");
     }
 
     m_nfq_queue = nfq_create_queue(
@@ -200,9 +120,7 @@ m_shutdown(false)
     );
 
     if (m_nfq_queue == NULL) {
-        m_log->error("nfq_create_queue() failed");
-
-        throw std::runtime_error("placeholder");
+        throw std::runtime_error("nfq_create_queue() failed");
     }
 
     const uint32_t l_queue_flags =
@@ -217,23 +135,17 @@ m_shutdown(false)
     );
 
     if (l_flag_status != 0) {
-        m_log->error("nfq_set_queue_flags() failed");
-
-        throw std::runtime_error("placeholder");
+        throw std::runtime_error("nfq_set_queue_flags() failed");
     }
 
     if (nfq_set_mode(m_nfq_queue, NFQNL_COPY_PACKET, 0xffff) < 0) {
-        m_log->error("nfq_set_mode() failed");
-
-        throw std::runtime_error("placeholder");
+        throw std::runtime_error("nfq_set_mode() failed");
     }
 
     m_nfq_fd = nfq_fd(m_nfq_handle);
 
     if (m_nfq_fd <= 0) {
-        m_log->error("nfq_fd() failed");
-
-        throw std::runtime_error("placeholder");
+        throw std::runtime_error("nfq_fd() failed");
     }
 
     m_iptables_raii = std::make_shared<iptables_raii>(p_log);
