@@ -18,7 +18,8 @@ std::string
 nf_hook_to_string(const nf_hook_t p_hook);
 
 struct probe_ipv4_event_t {
-    void    *m_handle;
+    void *   m_handle;
+    bool     m_tcp;
     bool     m_remove;
     uint32_t m_user_id;
     uint32_t m_process_id;

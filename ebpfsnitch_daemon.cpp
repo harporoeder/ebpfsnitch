@@ -54,12 +54,126 @@ m_shutdown(false)
 {
     m_log->trace("ebpfsnitch_daemon constructor");
     
-    m_log->trace("compiling ebpf probes");
-    const ebpf::StatusTuple l_init_res = m_bpf.init(file_to_string("probes.c"));
-    if (l_init_res.code() != 0) {
-        m_log->error("g_bpf.init() failed, {}", l_init_res.msg());
+    m_log->trace("loading ebpf object file");
 
-        throw std::runtime_error("failed to compile eBPF");
+    struct bpf_object *l_obj = bpf_object__open(
+        "./CMakeFiles/probes.dir/probes.c.o"
+    );
+
+    if (l_obj == NULL) {
+        std::cout << "bpf_object__open failed" << std::endl;
+
+        throw std::runtime_error("placeholder");
+    }
+
+    if (bpf_object__load(l_obj) != 0) {
+        std::cout << "load failed" << std::endl;
+
+        throw std::runtime_error("placeholder");
+    }
+
+    struct bpf_program *l_hook = bpf_object__find_program_by_name(
+        l_obj,
+        "msend"
+    );
+
+    if (l_hook == NULL) {
+        std::cout << "hook is NULL" << std::endl;
+
+        throw std::runtime_error("placeholder");
+    }
+
+    struct bpf_link *l_link =
+        bpf_program__attach_kprobe(l_hook, false, "security_socket_sendmsg");
+
+    if (l_link == NULL) {
+        std::cout << "link failed" << std::endl;
+
+        throw std::runtime_error("placeholder");
+    }
+
+    struct bpf_program *l_hook4 = bpf_object__find_program_by_name(
+        l_obj,
+        "msendret"
+    );
+
+    if (l_hook4 == NULL) {
+        std::cout << "hook is NULL" << std::endl;
+
+        throw std::runtime_error("placeholder");
+    }
+
+    struct bpf_link *l_link4 =
+        bpf_program__attach_kprobe(l_hook4, true, "security_socket_sendmsg");
+
+    if (l_link4 == NULL) {
+        std::cout << "link failed" << std::endl;
+
+        throw std::runtime_error("placeholder");
+    }
+
+    struct bpf_program *l_hook2 = bpf_object__find_program_by_name(
+        l_obj,
+        "msend2"
+    );
+
+    if (l_hook2 == NULL) {
+        std::cout << "hook is NULL" << std::endl;
+
+        throw std::runtime_error("placeholder");
+    }
+
+    struct bpf_link *l_link2 =
+        bpf_program__attach_kprobe(l_hook2, false, "tcp_v4_connect");
+
+    if (l_link2 == NULL) {
+        std::cout << "link failed" << std::endl;
+
+        throw std::runtime_error("placeholder");
+    }
+
+    struct bpf_program *l_hook3 = bpf_object__find_program_by_name(
+        l_obj,
+        "msend2ret"
+    );
+
+    if (l_hook3 == NULL) {
+        std::cout << "hook is NULL" << std::endl;
+
+        throw std::runtime_error("placeholder");
+    }
+
+    struct bpf_link *l_link3 =
+        bpf_program__attach_kprobe(l_hook3, true, "tcp_v4_connect");
+
+    if (l_link3 == NULL) {
+        std::cout << "link failed" << std::endl;
+
+        throw std::runtime_error("placeholder");
+    }
+
+    int l_buffer_map_fd = bpf_object__find_map_fd_by_name(
+        l_obj,
+        "g_probe_ipv4_events"
+    );
+
+    if (l_buffer_map_fd < 0) {
+        std::cout << "get fd failed" << std::endl;
+
+        throw std::runtime_error("placeholder");
+    }
+
+    m_ring_buffer = ring_buffer__new(
+        l_buffer_map_fd,
+        &ebpfsnitch_daemon::bpf_reader_indirect,
+        (void *)this,
+        NULL
+    );
+
+    if (m_ring_buffer == NULL) {
+        std::cout << "failed to create ring buffer" << std::endl;
+
+        throw std::runtime_error("placeholder");
     }
     
     m_nfq_handle = nfq_open();
@@ -126,63 +240,6 @@ m_shutdown(false)
     }
 
     m_iptables_raii = std::make_shared<iptables_raii>(p_log);
-
-    m_log->trace("attaching kprobes");
-    ebpf::StatusTuple l_attach_res = m_bpf.attach_kprobe(
-        "tcp_v4_connect",
-        "probe_tcp_v4_connect_entry"
-    );
-
-    if (l_attach_res.code() != 0) {
-        m_log->error("g_bpf.attach_kprobe() failed, {}", l_attach_res.msg());
-
-        throw std::runtime_error("placeholder");
-    }
-
-    l_attach_res = m_bpf.attach_kprobe(
-        "tcp_v4_connect",
-        "probe_tcp_v4_connect_return",
-        0,
-        BPF_PROBE_RETURN
-    );
-
-    if (l_attach_res.code() != 0) {
-        m_log->error("g_bpf.attach_kprobe() failed, {}", l_attach_res.msg());
-
-        throw std::runtime_error("placeholder");
-    }
-
-    l_attach_res = m_bpf.attach_tracepoint(
-        "sock:inet_sock_set_state",
-        "tracepoint__sock__inet_sock_set_state"
-    );
-
-    if (l_attach_res.code() != 0) {
-        m_log->error("m_bpf.attach_tracepoint failed, {}", l_attach_res.msg());
-
-        throw std::runtime_error("placeholder");
-    }
-
-    const ebpf::StatusTuple l_open_res = m_bpf.open_perf_buffer(
-        "g_probe_ipv4_events",
-        &ebpfsnitch_daemon::bpf_reader_indirect,
-        NULL,
-        (void *)this
-    );
-
-    if (l_open_res.code() != 0) {
-        m_log->error("g_bpf.open_perf_buffer() failed, {}", l_open_res.msg());
-
-        throw std::runtime_error("placeholder");
-    }
-
-    m_perf_buffer = m_bpf.get_perf_buffer("g_probe_ipv4_events");
-
-    if (m_perf_buffer == NULL) {
-        m_log->error("g_bpf.get_perf_buffer() failed, {}");
-
-        throw std::runtime_error("placeholder");
-    }
 
     m_filter_thread   = std::thread( &ebpfsnitch_daemon::filter_thread,   this );
     m_probe_thread   = std::thread( &ebpfsnitch_daemon::probe_thread,   this );
@@ -258,7 +315,13 @@ ebpfsnitch_daemon::probe_thread()
     m_log->trace("ebpfsnitch_daemon::probe_thread() entry");
 
     while (!m_shutdown.load()) {
-        m_perf_buffer->poll(100);
+        const int err = ring_buffer__poll(m_ring_buffer, 100);
+
+        if (err < 0) {
+            std::cout << "ringbuffer poll error" << std::endl;
+
+            break;
+        }
     }
 
     m_log->trace("ebpfsnitch_daemon::probe_thread() exit");
@@ -279,6 +342,11 @@ ebpfsnitch_daemon::bpf_reader(
 
         return;
     }
+
+    std::cout << "bpf event" << std::endl;
+
+    uint16_t l_source_port = l_info->m_source_port;
+    uint16_t l_destination_port = ntohs(l_info->m_destination_port);
 
     /*
     const uint64_t l_now = nanoseconds();
@@ -303,35 +371,40 @@ ebpfsnitch_daemon::bpf_reader(
 
     char l_readlink_buffer[1024 * 32 ];
 
-    const ssize_t l_readlink_status = readlink(
-        l_path.c_str(),
-        l_readlink_buffer,
-        sizeof(l_readlink_buffer) - 1
-    );
-
-    if (l_readlink_status == -1) {
-        m_log->error("failed to read link {}", l_path);
-    }
-
-    l_readlink_buffer[l_readlink_status] = '\0';
-
-    const std::string l_command_line = std::string(l_readlink_buffer);
-
-    const std::string l_path_cgroup = 
-        "/proc/" +
-        std::to_string(l_info->m_process_id) +
-        "/cgroup";
-
-    const std::string l_cgroup = file_to_string(l_path_cgroup);
-
-    std::regex l_regex(".*/docker/(\\w+)\n"); 
-    std::smatch l_match;
-
+    std::string l_command_line = "";
     std::string l_container_id = "";
 
-    if (std::regex_search(l_cgroup.begin(), l_cgroup.end(), l_match, l_regex)) {
-        std::cout << "got match|" << l_match[1] << "|" << std::endl;
-        l_container_id = l_match[1];
+    try {
+        const ssize_t l_readlink_status = readlink(
+            l_path.c_str(),
+            l_readlink_buffer,
+            sizeof(l_readlink_buffer) - 1
+        );
+
+        if (l_readlink_status == -1) {
+            // m_log->error("failed to read link {}", l_path);
+        }
+
+        l_readlink_buffer[l_readlink_status] = '\0';
+
+        l_command_line = std::string(l_readlink_buffer);
+
+        const std::string l_path_cgroup = 
+            "/proc/" +
+            std::to_string(l_info->m_process_id) +
+            "/cgroup";
+
+        const std::string l_cgroup = file_to_string(l_path_cgroup);
+
+        std::regex l_regex(".*/docker/(\\w+)\n"); 
+        std::smatch l_match;
+
+        if (std::regex_search(l_cgroup.begin(), l_cgroup.end(), l_match, l_regex)) {
+            std::cout << "got match|" << l_match[1] << "|" << std::endl;
+            l_container_id = l_match[1];
+        }
+    } catch (...) {
+
     }
 
     m_log->info(
@@ -340,18 +413,17 @@ ebpfsnitch_daemon::bpf_reader(
         l_info->m_handle,
         l_info->m_user_id,
         l_info->m_process_id,
-        l_info->m_source_port,
+        l_source_port,
         l_source_address,
-        l_info->m_destination_port,
+        l_destination_port,
         l_destination_address
     );
 
     const std::string l_key =
         l_source_address +
-        std::to_string(l_info->m_source_port) +
+        std::to_string(l_source_port) +
         l_destination_address +
-        std::to_string(l_info->m_destination_port);
-        
+        std::to_string(l_destination_port);
 
     struct connection_info_t l_info2;
     l_info2.m_user_id    = l_info->m_user_id;
@@ -368,11 +440,11 @@ ebpfsnitch_daemon::bpf_reader(
     process_unassociated();
 }
 
-void
+int
 ebpfsnitch_daemon::bpf_reader_indirect(
-    void *const p_cb_cookie,
-    void *const p_data,
-    const int   p_data_size
+    void *const  p_cb_cookie,
+    void *const  p_data,
+    const size_t p_data_size
 ){
     assert(p_cb_cookie);
     assert(p_data);
@@ -381,6 +453,8 @@ ebpfsnitch_daemon::bpf_reader_indirect(
         (class ebpfsnitch_daemon *const)p_cb_cookie;
 
     l_self->bpf_reader(p_data, p_data_size);
+
+    return 0;
 }
 
 bool
@@ -473,7 +547,7 @@ ebpfsnitch_daemon::nfq_handler(
     const ip_protocol_t p_proto =
         static_cast<ip_protocol_t>(l_nfq_event.m_protocol);
 
-    if (p_proto != ip_protocol_t::TCP) {
+    if (p_proto != ip_protocol_t::TCP && p_proto != ip_protocol_t::UDP) {
         m_log->error(
             "unknown allowing unhandled protocol {} {}",
             ip_protocol_to_string(p_proto),
@@ -580,6 +654,17 @@ ebpfsnitch_daemon::lookup_connection_info(const nfq_event_t &p_event)
     if (m_mapping.find(l_key) != m_mapping.end()) {
         return std::optional<struct connection_info_t>(m_mapping[l_key]);
     } else {
+        const std::string l_key2 =
+            "0.0.0.0" +
+            std::to_string(p_event.m_source_port) +
+            ipv4_to_string(p_event.m_destination_address) +
+            std::to_string(p_event.m_destination_port);
+        
+        if (m_mapping.find(l_key2) != m_mapping.end()) {
+            m_log->info("got on the second attempt");
+            return std::optional<struct connection_info_t>(m_mapping[l_key2]);
+        }
+
         return std::nullopt;
     }
 }
@@ -801,7 +886,7 @@ ebpfsnitch_daemon::process_unassociated()
             }
         } else {
             // two seconds
-            if (nanoseconds() < (l_nfq_event.m_timestamp + 2000000000 )) {
+            if (nanoseconds() > (l_nfq_event.m_timestamp + 2000000000 )) {
                 m_log->info(
                     "dropping still unassociated {}",
                     nfq_event_to_string(l_nfq_event)

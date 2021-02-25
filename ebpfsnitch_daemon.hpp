@@ -8,8 +8,8 @@
 #include <memory>
 #include <condition_variable>
 
-#include <bcc/bcc_version.h>
-#include <bcc/BPF.h>
+#include <bpf/libbpf.h>
+
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <libnfnetlink/libnfnetlink.h>
 #include <spdlog/spdlog.h>
@@ -58,11 +58,11 @@ private:
     );
 
     // static wrapper -> bpf_reader
-    static void
+    static int
     bpf_reader_indirect(
-        void *const p_cb_cookie,
-        void *const p_data,
-        const int   p_data_size
+        void *const  p_cb_cookie,
+        void *const  p_data,
+        const size_t p_data_size
     );
 
     int
@@ -95,9 +95,9 @@ private:
     std::mutex m_unassociated_packets_lock;
     void process_unassociated();
 
+    struct ring_buffer *m_ring_buffer;
+
     std::shared_ptr<spdlog::logger> m_log;
-    ebpf::BPF m_bpf;
-    ebpf::BPFPerfBuffer *m_perf_buffer;
     struct nfq_handle *m_nfq_handle;
     struct nfq_q_handle *m_nfq_queue;
     int m_nfq_fd;

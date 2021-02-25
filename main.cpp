@@ -18,8 +18,7 @@
 #include <nlohmann/json.hpp>
 #include <exception>
 
-#include <bcc/bcc_version.h>
-#include <bcc/BPF.h>
+#include <sys/resource.h>
 
 #include <libnetfilter_queue/libnetfilter_queue.h>
 
@@ -68,13 +67,27 @@ signal_pipe(const int p_sig)
     g_log->error("SIGPIPE");
 }
 
+static
+void set_rlimit()
+{
+    struct rlimit rlim_new = {
+        .rlim_cur	= RLIM_INFINITY,
+        .rlim_max	= RLIM_INFINITY,
+    };
+
+    if (setrlimit(RLIMIT_MEMLOCK, &rlim_new)) {
+        std::cout << "failed to set limits" << std::endl;
+    }
+}
+
+
 int
 main()
 {
     g_log = spdlog::stdout_color_mt("console");
     g_log->set_level(spdlog::level::trace);
 
-    g_log->info("LIBBCC_VERSION: {}", LIBBCC_VERSION);
+    set_rlimit();
 
     signal(SIGINT, signal_handler); 
     signal(SIGPIPE, signal_pipe);
