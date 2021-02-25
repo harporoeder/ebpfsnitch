@@ -2,7 +2,11 @@
 
 #include "bpf_wrapper.hpp"
 
-bpf_wrapper_object::bpf_wrapper_object(const std::string &p_object_path)
+bpf_wrapper_object::bpf_wrapper_object(
+    std::shared_ptr<spdlog::logger> p_log,
+    const std::string              &p_object_path
+):
+m_log(p_log)
 {
     m_object = bpf_object__open(p_object_path.c_str());
 
@@ -17,7 +21,19 @@ bpf_wrapper_object::bpf_wrapper_object(const std::string &p_object_path)
 
 bpf_wrapper_object::~bpf_wrapper_object()
 {
-    bpf_object__unload(m_object);
+    for (const auto &l_link : m_links) {
+        bpf_link__disconnect(l_link);
+
+        if (bpf_link__destroy(l_link) != 0) {
+            m_log->error("bpf_link__destroy() failed");
+        }
+    }
+
+    if (bpf_object__unload(m_object) != 0) {
+        m_log->error("bpf_object__unload() failed");
+    }
+
+    bpf_object__close(m_object);
 }
 
 void
@@ -44,4 +60,6 @@ bpf_wrapper_object::attach_kprobe(
     if (l_link == NULL) {
         throw std::runtime_error("bpf_program__attach_kprobe");
     }
+
+    m_links.push_back(l_link);
 }

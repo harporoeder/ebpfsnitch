@@ -1,12 +1,17 @@
 #pragma once
 
 #include <string>
+#include <memory>
 
 #include <bpf/libbpf.h>
+#include <spdlog/spdlog.h>
 
 class bpf_wrapper_object {
 public:
-    bpf_wrapper_object(const std::string &p_object_path);
+    bpf_wrapper_object(
+        std::shared_ptr<spdlog::logger> p_log,
+        const std::string              &p_object_path
+    );
 
     ~bpf_wrapper_object();
 
@@ -18,4 +23,9 @@ public:
     );
 
     struct bpf_object *m_object;
+
+private:
+    std::shared_ptr<spdlog::logger> m_log;
+
+    std::vector<struct bpf_link *> m_links;
 };
