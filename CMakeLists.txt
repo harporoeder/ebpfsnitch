@@ -55,7 +55,8 @@ target_link_libraries(
     PRIVATE
         bpf
         netfilter_queue
-        pthread spdlog
+        pthread
+        spdlog
         fmt
         nfnetlink
 )
