@@ -247,12 +247,12 @@ ebpfsnitch_daemon::bpf_reader(
         static_cast<probe_ipv4_event_t *>(p_data);
 
     if (l_info->m_remove) {
-        m_log->info("got remove command {}", l_info->m_handle);
+        // m_log->info("got remove command {}", l_info->m_handle);
 
         return;
     }
 
-    std::cout << "bpf event" << std::endl;
+    // std::cout << "bpf event" << std::endl;
 
     uint16_t l_source_port = l_info->m_source_port;
     uint16_t l_destination_port = ntohs(l_info->m_destination_port);
@@ -316,6 +316,7 @@ ebpfsnitch_daemon::bpf_reader(
 
     }
 
+    /*
     m_log->info(
         "got event handle {} uid {} pid {} sourcePort {} sourceAddress {} "
         "destinationPort {} destinationAddress {}",
@@ -327,6 +328,7 @@ ebpfsnitch_daemon::bpf_reader(
         l_destination_port,
         l_destination_address
     );
+    */
 
     const std::string l_key =
         l_source_address +
@@ -505,6 +507,7 @@ ebpfsnitch_daemon::nfq_handler(
 
     nlif_close(l_nlif);
 
+    /*
     m_log->info(
         "nfq event "
         "userId {} groupId {} protocol {} sourceAddress {} sourcePort {}"
@@ -520,13 +523,6 @@ ebpfsnitch_daemon::nfq_handler(
         l_indev,
         l_outdev
     );
-
-    /*
-    if (p_hook == nf_hook_t::IP_FORWARD) {
-        set_verdict(l_nfq_event.m_nfq_id, NF_ACCEPT);
-
-        return 0;
-    }
     */
 
     process_nfq_event(l_nfq_event, true);
@@ -570,7 +566,6 @@ ebpfsnitch_daemon::lookup_connection_info(const nfq_event_t &p_event)
             std::to_string(p_event.m_destination_port);
         
         if (m_mapping.find(l_key2) != m_mapping.end()) {
-            m_log->info("got on the second attempt");
             return std::optional<struct connection_info_t>(m_mapping[l_key2]);
         }
 
@@ -773,7 +768,7 @@ ebpfsnitch_daemon::process_unassociated()
 {
     std::queue<struct nfq_event_t> l_remaining;
 
-    m_log->info("process unassociated");
+    // m_log->info("process unassociated");
 
     std::lock_guard<std::mutex> l_guard(m_unassociated_packets_lock);
 
@@ -796,17 +791,19 @@ ebpfsnitch_daemon::process_unassociated()
         } else {
             // two seconds
             if (nanoseconds() > (l_nfq_event.m_timestamp + 2000000000 )) {
-                m_log->info(
+                m_log->error(
                     "dropping still unassociated {}",
                     nfq_event_to_string(l_nfq_event)
                 );
 
                 set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
             } else {
+                /*
                 m_log->info(
                     "still unassociated {}",
                     nfq_event_to_string(l_nfq_event)
                 );
+                */
 
                 l_remaining.push(l_nfq_event);    
             }
@@ -823,7 +820,7 @@ ebpfsnitch_daemon::process_unhandled()
 {
     std::queue<struct nfq_event_t> l_remaining;
 
-    m_log->info("process unhandled");
+    // m_log->info("process unhandled");
 
     std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
 
@@ -837,7 +834,7 @@ ebpfsnitch_daemon::process_unhandled()
             if (!process_associated_event(
                 l_unhandled, l_optional_info.value()))
             {
-                m_log->info("still undecided");
+                // m_log->info("still undecided");
 
                 l_remaining.push(l_unhandled);
             }
