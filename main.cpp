@@ -1,26 +1,10 @@
-#include <unistd.h>
 #include <fstream>
-#include <iostream>
-#include <string>
-#include <signal.h>
-#include <unistd.h>
-#include <netinet/in.h>
-#include <linux/netfilter.h>
-#include <thread>
-#include <arpa/inet.h>
-#include <unordered_map>
 #include <mutex>
-#include <assert.h>
-#include <algorithm>
 #include <condition_variable>
-#include <poll.h>
-#include <sys/un.h>
-#include <nlohmann/json.hpp>
 #include <exception>
 
+#include <signal.h>
 #include <sys/resource.h>
-
-#include <libnetfilter_queue/libnetfilter_queue.h>
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
@@ -28,13 +12,8 @@
 #include "ebpfsnitch_daemon.hpp"
 
 std::shared_ptr<spdlog::logger> g_log;
-
-std::shared_ptr<ebpfsnitch_daemon> g_daemon;
-std::condition_variable g_shutdown;
-std::mutex g_shutdown_mutex;
-
-static void
-signal_handler(const int p_sig);
+std::condition_variable         g_shutdown;
+std::mutex                      g_shutdown_mutex;
 
 static void
 trace_ebpf()
@@ -51,12 +30,10 @@ trace_ebpf()
     }
 }
 
-void
+static void
 signal_handler(const int p_sig)
 {
     g_log->info("signal_handler");
-
-    g_daemon.reset();
 
     g_shutdown.notify_all();
 }
@@ -76,7 +53,7 @@ void set_rlimit()
     };
 
     if (setrlimit(RLIMIT_MEMLOCK, &rlim_new)) {
-        std::cout << "failed to set limits" << std::endl;
+        g_log->error("failed to set limits");
     }
 }
 
@@ -92,12 +69,18 @@ main()
     signal(SIGINT, signal_handler); 
     signal(SIGPIPE, signal_pipe);
 
-    g_daemon = std::make_shared<ebpfsnitch_daemon>(g_log);
+    try {
+        const auto l_daemon = std::make_shared<ebpfsnitch_daemon>(g_log);
 
-    std::unique_lock<std::mutex> l_lock(g_shutdown_mutex);
-    g_shutdown.wait(l_lock);
+        std::unique_lock<std::mutex> l_lock(g_shutdown_mutex);
+        g_shutdown.wait(l_lock);
 
-    g_log->info("post g_shutdown condition");
+        g_log->info("post g_shutdown condition");
+    } catch (const std::exception &p_error) {
+        g_log->error("exception: {}", p_error.what());
+
+        return 1;
+    }
 
     return 0;
 }

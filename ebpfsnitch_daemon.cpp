@@ -19,9 +19,6 @@
 #include <exception>
 #include <regex>
 
-#include <bcc/bcc_version.h>
-#include <bcc/BPF.h>
-
 #include <libnetfilter_queue/libnetfilter_queue.h>
 
 #include <spdlog/spdlog.h>
