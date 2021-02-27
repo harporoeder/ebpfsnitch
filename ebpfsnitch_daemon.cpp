@@ -167,15 +167,6 @@ ebpfsnitch_daemon::~ebpfsnitch_daemon()
 
     nfq_destroy_queue(m_nfq_queue);
     nfq_close(m_nfq_handle);
-
-    m_log->trace("detaching ebpf kprobes");
-    /*
-    const ebpf::StatusTuple l_detach_res = m_bpf.detach_kprobe(clone_fnname);
-
-    if (l_detach_res.code() != 0) {
-        m_log->error("m_bpf.detach_kprobe() failed {}", l_detach_res.msg());
-    }
-    */
 }
 
 void
@@ -243,7 +234,7 @@ ebpfsnitch_daemon::bpf_reader(
 ){
     assert(p_data);
 
-    struct probe_ipv4_event_t *const l_info =
+    const struct probe_ipv4_event_t *const l_info =
         static_cast<probe_ipv4_event_t *>(p_data);
 
     if (l_info->m_remove) {
@@ -252,20 +243,8 @@ ebpfsnitch_daemon::bpf_reader(
         return;
     }
 
-    // std::cout << "bpf event" << std::endl;
-
-    uint16_t l_source_port = l_info->m_source_port;
-    uint16_t l_destination_port = ntohs(l_info->m_destination_port);
-
-    /*
-    const uint64_t l_now = nanoseconds();
-
-    m_log->info("now before: {}ns call: {}ns difference: {}ns",
-        l_now,
-        l_info->m_timestamp,
-        l_now - l_info->m_timestamp
-    );
-    */
+    const uint16_t l_source_port      = l_info->m_source_port;
+    const uint16_t l_destination_port = ntohs(l_info->m_destination_port);
 
     const std::string l_destination_address =
         ipv4_to_string(l_info->m_destination_address);
@@ -273,48 +252,15 @@ ebpfsnitch_daemon::bpf_reader(
     const std::string l_source_address =
         ipv4_to_string(l_info->m_source_address);
 
-    const std::string l_path = 
-        "/proc/" +
-        std::to_string(l_info->m_process_id) +
-        "/exe";
+    const auto l_process_info_opt = lookup_process_info(l_info->m_process_id);
 
-    char l_readlink_buffer[1024 * 32 ];
+    if (!l_process_info_opt) {
+        m_log->error("process does not exist {}", l_info->m_process_id);
 
-    std::string l_command_line = "";
-    std::string l_container_id = "";
-
-    try {
-        const ssize_t l_readlink_status = readlink(
-            l_path.c_str(),
-            l_readlink_buffer,
-            sizeof(l_readlink_buffer) - 1
-        );
-
-        if (l_readlink_status == -1) {
-            // m_log->error("failed to read link {}", l_path);
-        }
-
-        l_readlink_buffer[l_readlink_status] = '\0';
-
-        l_command_line = std::string(l_readlink_buffer);
-
-        const std::string l_path_cgroup = 
-            "/proc/" +
-            std::to_string(l_info->m_process_id) +
-            "/cgroup";
-
-        const std::string l_cgroup = file_to_string(l_path_cgroup);
-
-        std::regex l_regex(".*/docker/(\\w+)\n"); 
-        std::smatch l_match;
-
-        if (std::regex_search(l_cgroup.begin(), l_cgroup.end(), l_match, l_regex)) {
-            std::cout << "got match|" << l_match[1] << "|" << std::endl;
-            l_container_id = l_match[1];
-        }
-    } catch (...) {
-
+        return;
     }
+
+    const auto l_process_info = l_process_info_opt.value();
 
     /*
     m_log->info(
@@ -337,10 +283,11 @@ ebpfsnitch_daemon::bpf_reader(
         std::to_string(l_destination_port);
 
     struct connection_info_t l_info2;
+
     l_info2.m_user_id    = l_info->m_user_id;
     l_info2.m_process_id = l_info->m_process_id;
-    l_info2.m_executable = l_command_line;
-    l_info2.m_container  = l_container_id;
+    l_info2.m_executable = l_process_info.m_executable;
+    l_info2.m_container  = l_process_info.m_container_id.value_or("");
 
     {
         std::lock_guard<std::mutex> l_guard(m_lock);
@@ -798,13 +745,6 @@ ebpfsnitch_daemon::process_unassociated()
 
                 set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
             } else {
-                /*
-                m_log->info(
-                    "still unassociated {}",
-                    nfq_event_to_string(l_nfq_event)
-                );
-                */
-
                 l_remaining.push(l_nfq_event);    
             }
         }
@@ -877,4 +817,54 @@ ebpfsnitch_daemon::set_verdict(const uint32_t p_id, const uint32_t p_verdict)
     if (l_status < 0) {
         throw std::runtime_error("nfq_set_verdict failed");
     }
+}
+
+std::optional<process_info_t>
+ebpfsnitch_daemon::lookup_process_info(const uint32_t p_process_id)
+{
+    const std::string l_path = 
+        "/proc/" +
+        std::to_string(p_process_id) +
+        "/exe";
+
+    char l_readlink_buffer[1024 * 32];
+
+    if (
+        readlink(
+            l_path.c_str(),
+            l_readlink_buffer,
+            sizeof(l_readlink_buffer) - 1
+        ) == -1
+    ){
+        return std::nullopt;
+    }
+
+    const std::string l_path_cgroup = 
+        "/proc/" +
+        std::to_string(p_process_id) +
+        "/cgroup";
+
+    struct process_info_t l_process_info;
+
+    l_process_info.m_executable   = std::string(l_readlink_buffer);
+    l_process_info.m_container_id = std::nullopt;
+
+    try {
+        const std::string l_cgroup = file_to_string(l_path_cgroup);
+
+        std::regex l_regex(".*/docker/(\\w+)\n"); 
+        std::smatch l_match;
+
+        if (std::regex_search(
+            l_cgroup.begin(),
+            l_cgroup.end(),
+            l_match,
+            l_regex)
+        ){
+            l_process_info.m_container_id =
+                std::optional<std::string>(l_match[1]);
+        }
+    } catch (...) {}
+
+    return std::optional<struct process_info_t>(l_process_info);
 }

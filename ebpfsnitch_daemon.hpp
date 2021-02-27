@@ -114,6 +114,9 @@ private:
     std::optional<struct connection_info_t>
     lookup_connection_info(const nfq_event_t &p_event);
 
+    std::optional<process_info_t>
+    lookup_process_info(const uint32_t p_process_id);
+
     std::atomic<bool> m_shutdown;
     bpf_wrapper_object m_bpf_wrapper;
 

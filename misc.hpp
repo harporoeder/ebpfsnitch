@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 // https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/netfilter_ipv4.h#L16
 enum class nf_hook_t : uint8_t {
     // After promisc drops, checksum checks.
@@ -53,6 +55,11 @@ enum class ip_protocol_t : uint8_t {
     ICMP = 1,
     TCP  = 6,
     UDP  = 17
+};
+
+struct process_info_t {
+    std::string                m_executable;
+    std::optional<std::string> m_container_id;
 };
 
 std::string
