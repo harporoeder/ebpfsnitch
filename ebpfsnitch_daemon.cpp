@@ -597,7 +597,13 @@ ebpfsnitch_daemon::control_thread()
 
             m_log->info("accept unix socket connection");
 
-            handle_control(l_client_fd);
+            try {
+                handle_control(l_client_fd);
+            } catch (const std::exception &err) {
+                m_log->error("handle_control failed {}", err.what());
+            }
+
+            close(l_client_fd);
         }
 
         close(l_fd);
@@ -610,9 +616,61 @@ ebpfsnitch_daemon::control_thread()
     m_log->trace("ebpfsnitch_daemon::control_thread() exit");
 }
 
+static void
+writeAll(const int p_sock, const std::string &p_buffer)
+{
+    const ssize_t l_status = write(
+        p_sock ,
+        p_buffer.c_str(),
+        p_buffer.size()
+    );
+
+    if (l_status != p_buffer.size()) {
+        throw std::runtime_error("failed to write all");
+
+        return;
+    }
+}
+
+static std::string
+readLine(const int p_sock)
+{
+    char l_line[1024];
+
+    ssize_t l_rv = read(p_sock, &l_line, 1024);
+
+    if (l_rv == -1) {
+        throw std::runtime_error("failed to read line");
+    }
+
+    char *l_p = (char *)memchr(l_line, '\n', 1024);
+    
+    if (l_p == NULL) {
+        throw std::runtime_error("no newline");
+    }
+
+    *l_p = '\0';
+
+    return std::string(l_line);
+}
+
 void
 ebpfsnitch_daemon::handle_control(const int p_sock)
 {
+    {
+        const nlohmann::json l_json = {
+            { "kind", "addRule" },
+            { "body", {
+                { "ruleId", "abc123" },
+                { "allow",  true     }
+            }}
+        };
+
+        const std::string l_json_serialized = l_json.dump() + "\n";
+
+        writeAll(p_sock, l_json_serialized);
+    }
+
     while (true) {
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
@@ -649,6 +707,7 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
         const struct connection_info_t l_info = l_optional_info.value();
 
         const nlohmann::json l_json = {
+            { "kind",               "query"                        },
             { "executable",         l_info.m_executable            },
             { "userId",             l_nfq_event.m_user_id          },
             { "processId",          l_info.m_process_id            },
@@ -663,36 +722,9 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
 
         const std::string l_json_serialized = l_json.dump() + "\n";
 
-        const ssize_t l_status = write(
-            p_sock ,
-            l_json_serialized.c_str(),
-            l_json_serialized.size()
-        );
+        writeAll(p_sock, l_json_serialized);
 
-        if (l_status == -1) {
-            m_log->error("write() failed");
-
-            break;
-        }
-
-        unsigned char l_line[1024];
-        ssize_t l_rv = read(p_sock, &l_line, 1024);
-    
-        if (l_rv == -1) {
-            m_log->error("read() failed");
-    
-            break;
-        }
-    
-        unsigned char *l_p = (unsigned char *)memchr(l_line, '\n', 1024);
-        
-        if (l_p == NULL) {
-            m_log->error("no newline");
-
-            break;
-        }
-
-        *l_p = '\0';
+        const std::string l_line = readLine(p_sock);
 
         m_log->info("got command |{}|", l_line);
 
@@ -706,8 +738,6 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
 
         process_unhandled();
     }
-
-    close(p_sock);
 }
 
 void

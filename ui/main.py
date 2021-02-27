@@ -47,22 +47,18 @@ class PromptDialog(QDialog):
 
 class MainWindow(QMainWindow):
     _prompt_trigger = QtCore.pyqtSignal()
+    _add_rule_trigger = QtCore.pyqtSignal()
 
     def __init__(self):
         super().__init__()
 
         self.setWindowTitle("eBPFSnitch")
 
-        # button = QPushButton("does nothing button")
-        # button.clicked.connect(self.button_clicked)
-        # self.setCentralWidget(button)
-
         v = QVBoxLayout()
         v.setAlignment(Qt.AlignTop)
         v.addWidget(QLabel("Firewall Rules:"))
-        v.addWidget(self.make_item())
-        v.addWidget(self.make_item())
-        v.addWidget(self.make_item())
+
+        self._rules = v
 
         widget = QWidget()
         widget.setLayout(v)
@@ -71,7 +67,9 @@ class MainWindow(QMainWindow):
 
         self._done = threading.Event()
         self._allow = False
+
         self._prompt_trigger.connect(self.on_prompt_trigger)
+        self._add_rule_trigger.connect(self.on_add_rule_trigger)
 
     def make_item(self):
         header = QHBoxLayout()
@@ -84,10 +82,6 @@ class MainWindow(QMainWindow):
         body_widget = QListWidget()
         body_widget.addItem("Match destinationAddress == 127.0.0.1")
         body_widget.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
-        # body = QVBoxLayout()
-        # body.addWidget(QLabel("Match destinationAddress == 127.0.0.1"))
-        # body_widget = QWidget()
-        # body_widget.setLayout(body)
 
         container = QVBoxLayout()
         container.setAlignment(Qt.AlignTop)
@@ -109,6 +103,33 @@ class MainWindow(QMainWindow):
         self._forAllAddress = dlg.forAllAddress.isChecked()
         self._forAllPort = dlg.forAllPort.isChecked()
         self._done.set()
+
+    @QtCore.pyqtSlot()
+    def on_add_rule_trigger(self):
+        header = QHBoxLayout()
+        header.addWidget(QLabel("Rule UUID: " + self._new_rule["ruleId"]))
+        header.addWidget(QLabel("Allow: " + str(self._new_rule["allow"])))
+        header.addWidget(QPushButton("Remove Rule"))
+        header_widget = QWidget()
+        header_widget.setLayout(header)
+    
+        body_widget = QListWidget()
+        body_widget.addItem("Match destinationAddress == 127.0.0.1")
+        body_widget.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+
+        container = QVBoxLayout()
+        container.setAlignment(Qt.AlignTop)
+        container.addWidget(header_widget)
+        container.addWidget(body_widget)
+
+        item = QWidget()
+        item.setLayout(container)
+    
+        self._rules.addWidget(item)
+
+    def handle_add_rule(self, rule):
+        self._new_rule = rule
+        self._add_rule_trigger.emit()
 
     def handle_prompt(self, question):
         self._done.clear()
@@ -155,41 +176,48 @@ async def daemon_client():
         line = await reader.readuntil(separator=b'\n')
         line = line.decode()
         print(line)
+    
         parsed = json.loads(line)
-        print(parsed["executable"])
 
-        result = window.handle_prompt(parsed)
+        if parsed["kind"] == "query":
+            print(parsed["executable"])
 
-        command = {
-            "allow": result["allow"],
-            "clauses": [
-                {
-                    "field": "executable",
-                    "value": parsed["executable"]
-                }
-            ]
-        }
+            result = window.handle_prompt(parsed)
 
-        if result["forAllAddress"] == False:
-            command["clauses"].append(
-                {
-                    "field": "destinationAddress",
-                    "value": parsed["destinationAddress"]
-                }
-            )
+            command = {
+                "allow": result["allow"],
+                "clauses": [
+                    {
+                        "field": "executable",
+                        "value": parsed["executable"]
+                    }
+                ]
+            }
 
-        if result["forAllPort"] == False:
-            command["clauses"].append(
-                {
-                    "field": "destinationPort",
-                    "value": str(parsed["destinationPort"])
-                }
-            )
+            if result["forAllAddress"] == False:
+                command["clauses"].append(
+                    {
+                        "field": "destinationAddress",
+                        "value": parsed["destinationAddress"]
+                    }
+                )
 
-        serialized = str.encode(json.dumps(command) + "\n")
+            if result["forAllPort"] == False:
+                command["clauses"].append(
+                    {
+                        "field": "destinationPort",
+                        "value": str(parsed["destinationPort"])
+                    }
+                )
 
-        writer.write(serialized)
-        await writer.drain()
+            serialized = str.encode(json.dumps(command) + "\n")
+
+            writer.write(serialized)
+            await writer.drain()
+        elif parsed["kind"] == "addRule":
+            window.handle_add_rule(parsed["body"])
+        else:
+            print("unknown command")
 
     print('Close the connection')
     writer.close()
