@@ -54,44 +54,27 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("eBPFSnitch")
 
-        v = QVBoxLayout()
+        scroll = QScrollArea(self)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        scroll.setWidgetResizable(True)
+
+        inner = QFrame(scroll)
+        v = QVBoxLayout(scroll)
         v.setAlignment(Qt.AlignTop)
         v.addWidget(QLabel("Firewall Rules:"))
+        inner.setLayout(v)
+
+        scroll.setWidget(inner)
 
         self._rules = v
 
-        widget = QWidget()
-        widget.setLayout(v)
-
-        self.setCentralWidget(widget)
+        self.setCentralWidget(scroll)
 
         self._done = threading.Event()
         self._allow = False
 
         self._prompt_trigger.connect(self.on_prompt_trigger)
         self._add_rule_trigger.connect(self.on_add_rule_trigger)
-
-    def make_item(self):
-        header = QHBoxLayout()
-        header.addWidget(QLabel("Rule UUID: 62c5575e-1f30-419f-aa95-aee9bd2e7514"))
-        header.addWidget(QLabel("Verdict: Allow"))
-        header.addWidget(QPushButton("Remove Rule"))
-        header_widget = QWidget()
-        header_widget.setLayout(header)
-    
-        body_widget = QListWidget()
-        body_widget.addItem("Match destinationAddress == 127.0.0.1")
-        body_widget.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
-
-        container = QVBoxLayout()
-        container.setAlignment(Qt.AlignTop)
-        container.addWidget(header_widget)
-        container.addWidget(body_widget)
-
-        item = QWidget()
-        item.setLayout(container)
-
-        return item
 
     def button_clicked(self):
         print("button click")
@@ -112,11 +95,23 @@ class MainWindow(QMainWindow):
         header.addWidget(QPushButton("Remove Rule"))
         header_widget = QWidget()
         header_widget.setLayout(header)
-    
-        body_widget = QListWidget()
-        for clause in self._new_rule["clauses"]:
-            body_widget.addItem("Match " + clause["field"] + " == " + clause["value"])
+
+        body_widget = QTableWidget()
+        body_widget.setColumnCount(2)
+        body_widget.setRowCount(0)
+        body_widget.resizeRowsToContents()
         body_widget.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        body_widget.verticalScrollBar().setDisabled(True);
+        body_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        body_widget.setHorizontalHeaderLabels(["Selector", "Matches"])
+        body_widget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+        for clause in self._new_rule["clauses"]:
+            body_widget.insertRow(body_widget.rowCount())
+            body_widget.setItem(body_widget.rowCount() - 1, 0, QTableWidgetItem(clause["field"]))
+            body_widget.setItem(body_widget.rowCount() - 1, 1, QTableWidgetItem(clause["value"]))
+
+        body_widget.setMaximumHeight(body_widget.rowHeight(0) * (body_widget.rowCount()) + body_widget.horizontalHeader().height())
 
         container = QVBoxLayout()
         container.setAlignment(Qt.AlignTop)
@@ -125,6 +120,7 @@ class MainWindow(QMainWindow):
 
         item = QWidget()
         item.setLayout(container)
+        item.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
     
         self._rules.addWidget(item)
 
