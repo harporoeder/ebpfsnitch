@@ -164,6 +164,8 @@ async def daemon_client_supervisor():
             print(repr(err))
         except asyncio.IncompleteReadError as err:
             print(repr(err))
+        except FileNotFoundError as err:
+            print(repr(err))
 
         print("retrying connection in one second")
         await asyncio.sleep(1)
