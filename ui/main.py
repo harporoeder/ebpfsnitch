@@ -8,6 +8,7 @@ import time
 from PyQt5 import QtCore
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
+from PyQt5.QtCore import Qt 
 
 class PromptDialog(QDialog):
     def __init__(self, question, parent=None):
@@ -52,13 +53,51 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("eBPFSnitch")
 
-        button = QPushButton("does nothing button")
-        button.clicked.connect(self.button_clicked)
-        self.setCentralWidget(button)
+        # button = QPushButton("does nothing button")
+        # button.clicked.connect(self.button_clicked)
+        # self.setCentralWidget(button)
+
+        v = QVBoxLayout()
+        v.setAlignment(Qt.AlignTop)
+        v.addWidget(QLabel("Firewall Rules:"))
+        v.addWidget(self.make_item())
+        v.addWidget(self.make_item())
+        v.addWidget(self.make_item())
+
+        widget = QWidget()
+        widget.setLayout(v)
+
+        self.setCentralWidget(widget)
 
         self._done = threading.Event()
         self._allow = False
         self._prompt_trigger.connect(self.on_prompt_trigger)
+
+    def make_item(self):
+        header = QHBoxLayout()
+        header.addWidget(QLabel("Rule UUID: 62c5575e-1f30-419f-aa95-aee9bd2e7514"))
+        header.addWidget(QLabel("Verdict: Allow"))
+        header.addWidget(QPushButton("Remove Rule"))
+        header_widget = QWidget()
+        header_widget.setLayout(header)
+    
+        body_widget = QListWidget()
+        body_widget.addItem("Match destinationAddress == 127.0.0.1")
+        body_widget.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+        # body = QVBoxLayout()
+        # body.addWidget(QLabel("Match destinationAddress == 127.0.0.1"))
+        # body_widget = QWidget()
+        # body_widget.setLayout(body)
+
+        container = QVBoxLayout()
+        container.setAlignment(Qt.AlignTop)
+        container.addWidget(header_widget)
+        container.addWidget(body_widget)
+
+        item = QWidget()
+        item.setLayout(container)
+
+        return item
 
     def button_clicked(self):
         print("button click")
@@ -86,7 +125,7 @@ app = QApplication(sys.argv)
 app.setQuitOnLastWindowClosed(False)
 
 window = MainWindow()
-# window.show()
+window.show()
 
 icon = QIcon("icon.png")
 tray = QSystemTrayIcon()
