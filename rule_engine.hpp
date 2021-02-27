@@ -7,6 +7,14 @@
 
 #include "misc.hpp"
 
+enum class field_t {
+    executable,
+    destination_address,
+    destination_port
+};
+
+field_t field_from_string(const std::string &p_field);
+
 class rule_engine_t {
 public:
     rule_engine_t();
@@ -25,7 +33,7 @@ private:
     struct clause_t {
         clause_t(const nlohmann::json &p_json);
 
-        std::string m_field;
+        field_t      m_field;
         std::string m_value;
     };
 

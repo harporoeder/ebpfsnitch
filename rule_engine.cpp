@@ -1,8 +1,28 @@
+#include <unordered_map>
+
 #include "rule_engine.hpp"
+
+const std::unordered_map<std::string, field_t> g_field_map = {
+    { "executable",         field_t::executable          },
+    { "destinationAddress", field_t::destination_address },
+    { "destinationPort",    field_t::destination_port    }
+};
+
+field_t
+field_from_string(const std::string &p_field)
+{
+    const auto l_iter = g_field_map.find(p_field);
+
+    if (l_iter != g_field_map.end()) {
+        return l_iter->second;
+    }
+
+    throw std::runtime_error("invalid field");
+}
 
 rule_engine_t::clause_t::clause_t(const nlohmann::json &p_json)
 {
-    m_field  = p_json["field"];
+    m_field  = field_from_string(p_json["field"]);
     m_value = p_json["value"];
 }
 
@@ -38,29 +58,37 @@ rule_engine_t::get_verdict(
         bool l_match = true;
 
         for (const auto &l_clause : l_rule.m_clauses) {
-            if (l_clause.m_field == "executable") {
-                if (l_clause.m_value != p_info.m_executable) {
-                    l_match = false;
+            switch (l_clause.m_field) {
+                case field_t::executable: {
+                    if (l_clause.m_value != p_info.m_executable) {
+                        l_match = false;
+                    }
 
                     break;
                 }
-            } else if (l_clause.m_field == "destinationAddress") {
-                const std::string l_addr =
-                    ipv4_to_string(p_nfq_event.m_destination_address);
+                case field_t::destination_port: {
+                    const std::string l_addr =
+                        ipv4_to_string(p_nfq_event.m_destination_address);
 
-                if (l_clause.m_value != l_addr) {
-                    l_match = false;
-
-                    break;
-                }
-            } else if (l_clause.m_field == "destinationPort") {
-                if (l_clause.m_value !=
-                    std::to_string(p_nfq_event.m_destination_port))
-                {
-                    l_match = false;
+                    if (l_clause.m_value != l_addr) {
+                        l_match = false;
+                    }
 
                     break;
                 }
+                case field_t::destination_address: {
+                    if (l_clause.m_value !=
+                        std::to_string(p_nfq_event.m_destination_port))
+                    {
+                        l_match = false;
+                    }
+
+                    break;
+                }
+            }
+
+            if (l_match == false) {
+                break;
             }
         }
 
