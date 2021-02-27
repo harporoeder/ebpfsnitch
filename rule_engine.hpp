@@ -10,7 +10,8 @@
 enum class field_t {
     executable,
     destination_address,
-    destination_port
+    destination_port,
+    container_id
 };
 
 field_t field_from_string(const std::string &p_field);
@@ -21,7 +22,7 @@ public:
 
     ~rule_engine_t();
 
-    void add_rule(const nlohmann::json &p_json);
+    std::string add_rule(const nlohmann::json &p_json);
 
     const std::optional<bool>
     get_verdict(

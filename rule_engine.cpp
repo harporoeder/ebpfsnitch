@@ -1,11 +1,16 @@
 #include <unordered_map>
 
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/uuid_io.hpp>
+
 #include "rule_engine.hpp"
 
 const std::unordered_map<std::string, field_t> g_field_map = {
     { "executable",         field_t::executable          },
     { "destinationAddress", field_t::destination_address },
-    { "destinationPort",    field_t::destination_port    }
+    { "destinationPort",    field_t::destination_port    },
+    { "containerId",        field_t::container_id        }
 };
 
 field_t
@@ -39,12 +44,18 @@ rule_engine_t::rule_engine_t(){};
 
 rule_engine_t::~rule_engine_t(){};
 
-void
+std::string
 rule_engine_t::add_rule(const nlohmann::json &p_json)
 {
+    const std::string l_uuid = boost::uuids::to_string(
+        boost::uuids::random_generator()()
+    );
+
     std::unique_lock l_guard(m_lock);
 
     m_rules.push_back(rule_t(p_json));
+
+    return l_uuid;
 }
 
 const std::optional<bool>
@@ -66,7 +77,7 @@ rule_engine_t::get_verdict(
 
                     break;
                 }
-                case field_t::destination_port: {
+                case field_t::destination_address: {
                     const std::string l_addr =
                         ipv4_to_string(p_nfq_event.m_destination_address);
 
@@ -76,7 +87,7 @@ rule_engine_t::get_verdict(
 
                     break;
                 }
-                case field_t::destination_address: {
+                case field_t::destination_port: {
                     if (l_clause.m_value !=
                         std::to_string(p_nfq_event.m_destination_port))
                     {

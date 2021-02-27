@@ -39,6 +39,8 @@ target_compile_options(
 
 # daemon target ----------------------------------------------------------------
 
+find_package( Boost REQUIRED COMPONENTS system )
+
 add_executable(
     main
     main.cpp
@@ -50,6 +52,12 @@ add_executable(
 
 target_compile_definitions(main PRIVATE SPDLOG_FMT_EXTERNAL)
 
+target_include_directories(
+    main
+    PRIVATE
+        ${Boost_INCLUDE_DIRS}
+)
+
 target_link_libraries(
     main
     PRIVATE
@@ -59,4 +67,5 @@ target_link_libraries(
         spdlog
         fmt
         nfnetlink
+        ${Boost_LIBRARIES}
 )

@@ -657,20 +657,6 @@ readLine(const int p_sock)
 void
 ebpfsnitch_daemon::handle_control(const int p_sock)
 {
-    {
-        const nlohmann::json l_json = {
-            { "kind", "addRule" },
-            { "body", {
-                { "ruleId", "abc123" },
-                { "allow",  true     }
-            }}
-        };
-
-        const std::string l_json_serialized = l_json.dump() + "\n";
-
-        writeAll(p_sock, l_json_serialized);
-    }
-
     while (true) {
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
@@ -730,10 +716,19 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
 
         nlohmann::json l_verdict = nlohmann::json::parse(l_line);
 
-        try {
-            m_rule_engine.add_rule(l_verdict);
-        } catch (...) {
-            m_log->error("parsing failed");
+        const std::string l_rule_id = m_rule_engine.add_rule(l_verdict);
+
+        {
+            l_verdict["ruleId"] = l_rule_id;
+
+            const nlohmann::json l_json = {
+                { "kind", "addRule" },
+                { "body", l_verdict }
+            };
+
+            const std::string l_json_serialized = l_json.dump() + "\n";
+
+            writeAll(p_sock, l_json_serialized);
         }
 
         process_unhandled();
@@ -859,15 +854,17 @@ ebpfsnitch_daemon::lookup_process_info(const uint32_t p_process_id)
 
     char l_readlink_buffer[1024 * 32];
 
-    if (
-        readlink(
-            l_path.c_str(),
-            l_readlink_buffer,
-            sizeof(l_readlink_buffer) - 1
-        ) == -1
-    ){
+    const ssize_t l_readlink_status = readlink(
+        l_path.c_str(),
+        l_readlink_buffer,
+        sizeof(l_readlink_buffer) - 1
+    );
+
+    if (l_readlink_status == -1) {
         return std::nullopt;
     }
+
+    l_readlink_buffer[l_readlink_status] = '\0';
 
     const std::string l_path_cgroup = 
         "/proc/" +

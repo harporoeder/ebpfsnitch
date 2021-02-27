@@ -114,7 +114,8 @@ class MainWindow(QMainWindow):
         header_widget.setLayout(header)
     
         body_widget = QListWidget()
-        body_widget.addItem("Match destinationAddress == 127.0.0.1")
+        for clause in self._new_rule["clauses"]:
+            body_widget.addItem("Match " + clause["field"] + " == " + clause["value"])
         body_widget.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
 
         container = QVBoxLayout()
