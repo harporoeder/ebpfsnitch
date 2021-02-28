@@ -18,10 +18,10 @@ user interface to self authorize.
 
 ## Features
 
-eBPFSnitch currently only supports filtering outgoing IPv4 TCP connections,
-everything else is allowed through by default. Filtering for ICPM, and UDP
-should be supported in the near future. Other protocols may eventually
-get blanket authorization support.
+eBPFSnitch currently only supports filtering outgoing IPv4 TCP / UDP
+packets, everything else is allowed through by default. Filtering for IPv6,
+and incoming connections should be supported in the near future. Other
+protocols may eventually get blanket authorization support.
 
 A core goal of this project is to integrate well with containerized
 applications. If an application is running in a container that container
