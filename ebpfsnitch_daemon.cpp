@@ -19,6 +19,9 @@
 #include <exception>
 #include <regex>
 
+#include <fcntl.h> 
+#include <string.h>
+
 #include <libnetfilter_queue/libnetfilter_queue.h>
 
 #include <spdlog/spdlog.h>
@@ -619,49 +622,128 @@ ebpfsnitch_daemon::control_thread()
 static void
 writeAll(const int p_sock, const std::string &p_buffer)
 {
-    const ssize_t l_status = write(
-        p_sock ,
-        p_buffer.c_str(),
-        p_buffer.size()
-    );
+    size_t l_written = 0;
 
-    if (l_status != p_buffer.size()) {
-        throw std::runtime_error("failed to write all");
+    while (true) {
+        const ssize_t l_status = write(
+            p_sock,
+            p_buffer.c_str(),
+            p_buffer.size()
+        );
 
-        return;
+        if (l_status < 0) {
+            if (errno == EWOULDBLOCK || errno == EAGAIN) {
+                continue;
+            } else {
+                throw std::runtime_error(strerror(errno));
+            }
+        } else if (l_status == 0) {
+            throw std::runtime_error("write socket closed");
+        }
+
+        l_written += l_status;
+
+        if (l_written == p_buffer.size()) {
+            return;
+        }
     }
 }
 
-static std::string
-readLine(const int p_sock)
-{
-    char l_line[1024];
+class line_reader {
+public:
+    line_reader(const int p_sock):
+        m_sock(p_sock),
+        m_position(0)
+    {};
 
-    ssize_t l_rv = read(p_sock, &l_line, 1024);
+    std::optional<std::string>
+    poll_line()
+    {
+        const ssize_t l_status = read(
+            m_sock,
+            &m_buffer + m_position,
+            sizeof(m_buffer) - m_position
+        );
 
-    if (l_rv == -1) {
-        throw std::runtime_error("failed to read line");
+        if (l_status < 0) {
+            if (errno == EWOULDBLOCK || errno == EAGAIN) {
+                return std::nullopt;
+            } else {
+                throw std::runtime_error(strerror(errno));
+            }
+        } else if (l_status == 0) {
+            throw std::runtime_error("read socket closed");
+        }
+
+        m_position += l_status;
+
+        char *l_end = (char *)memchr(m_buffer, '\n', m_position);
+
+        if (l_end == NULL) {
+            return std::nullopt;
+        }
+
+        const std::string l_line(m_buffer, l_end - m_buffer);
+
+        m_position = 0;
+
+        return std::optional<std::string>(l_line);
     }
 
-    char *l_p = (char *)memchr(l_line, '\n', 1024);
-    
-    if (l_p == NULL) {
-        throw std::runtime_error("no newline");
-    }
-
-    *l_p = '\0';
-
-    return std::string(l_line);
-}
+private:
+    size_t m_position;
+    int m_sock;
+    char m_buffer[1024];
+};
 
 void
 ebpfsnitch_daemon::handle_control(const int p_sock)
 {
-    while (true) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    if (fcntl(p_sock, F_SETFL, O_NONBLOCK) == -1) {
+        throw std::runtime_error("failed to set O_NONBLOCK");
+    }
 
+    line_reader l_reader(p_sock);
+
+    bool awaitingAction = false;
+
+    while (true) {
         if (m_shutdown.load()) {
             break;
+        }
+
+        const auto l_line_opt = l_reader.poll_line();
+
+        if (l_line_opt) {
+            m_log->info("got command |{}|", *l_line_opt);
+
+            nlohmann::json l_verdict = nlohmann::json::parse(*l_line_opt);
+
+            if (l_verdict["kind"] == "addRule") {
+                m_log->info("adding rule");
+                const std::string l_rule_id = m_rule_engine.add_rule(l_verdict);
+
+                {
+                    l_verdict["ruleId"] = l_rule_id;
+
+                    const nlohmann::json l_json = {
+                        { "kind", "addRule" },
+                        { "body", l_verdict }
+                    };
+
+                    const std::string l_json_serialized = l_json.dump() + "\n";
+                    m_log->info("writing all");
+                    writeAll(p_sock, l_json_serialized);
+                }
+
+                process_unhandled();
+
+                awaitingAction = false;
+            }
+        }
+
+        if (awaitingAction) {
+            continue;
         }
 
         struct nfq_event_t l_nfq_event;
@@ -710,28 +792,7 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
 
         writeAll(p_sock, l_json_serialized);
 
-        const std::string l_line = readLine(p_sock);
-
-        m_log->info("got command |{}|", l_line);
-
-        nlohmann::json l_verdict = nlohmann::json::parse(l_line);
-
-        const std::string l_rule_id = m_rule_engine.add_rule(l_verdict);
-
-        {
-            l_verdict["ruleId"] = l_rule_id;
-
-            const nlohmann::json l_json = {
-                { "kind", "addRule" },
-                { "body", l_verdict }
-            };
-
-            const std::string l_json_serialized = l_json.dump() + "\n";
-
-            writeAll(p_sock, l_json_serialized);
-        }
-
-        process_unhandled();
+        awaitingAction = true;
     }
 }
 

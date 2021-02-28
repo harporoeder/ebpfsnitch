@@ -182,6 +182,7 @@ async def daemon_client():
             result = window.handle_prompt(parsed)
 
             command = {
+                "kind": "addRule",
                 "allow": result["allow"],
                 "clauses": [
                     {
