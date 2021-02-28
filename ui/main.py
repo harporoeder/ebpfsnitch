@@ -90,7 +90,7 @@ class MainWindow(QMainWindow):
         self._forAllPort = dlg.forAllPort.isChecked()
         self._done.set()
 
-    def on_delete_rule_trigger(self, ruleId):
+    def on_delete_rule_trigger(self, ruleId, widget):
         print("clicked rule delete: " + ruleId);
 
         command = {
@@ -100,13 +100,14 @@ class MainWindow(QMainWindow):
 
         serialized = str.encode(json.dumps(command) + "\n")
 
+        widget.deleteLater()
+
         loop.call_soon_threadsafe(g_outbox.put_nowait, serialized)
 
     @QtCore.pyqtSlot()
     def on_add_rule_trigger(self):
         ruleId = self._new_rule["ruleId"]
         delete_button = QPushButton("Remove Rule")
-        delete_button.clicked.connect(lambda: self.on_delete_rule_trigger(ruleId))
 
         header = QHBoxLayout()
         header.addWidget(QLabel("Rule UUID: " + self._new_rule["ruleId"]))
@@ -140,6 +141,8 @@ class MainWindow(QMainWindow):
         item = QWidget()
         item.setLayout(container)
         item.setSizePolicy(QSizePolicy.Minimum, QSizePolicy.Minimum)
+
+        delete_button.clicked.connect(lambda: self.on_delete_rule_trigger(ruleId, item))
     
         self._rules.addWidget(item)
 
