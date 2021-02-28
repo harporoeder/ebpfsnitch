@@ -42,7 +42,7 @@ target_compile_options(
 find_package( Boost REQUIRED COMPONENTS system program_options )
 
 add_executable(
-    main
+    ebpfsnitch
     main.cpp
     ebpfsnitch_daemon.cpp
     rule_engine.cpp
@@ -50,16 +50,16 @@ add_executable(
     bpf_wrapper.cpp
 )
 
-target_compile_definitions(main PRIVATE SPDLOG_FMT_EXTERNAL)
+target_compile_definitions(ebpfsnitch PRIVATE SPDLOG_FMT_EXTERNAL)
 
 target_include_directories(
-    main
+    ebpfsnitch
     PRIVATE
         ${Boost_INCLUDE_DIRS}
 )
 
 target_link_libraries(
-    main
+    ebpfsnitch
     PRIVATE
         bpf
         netfilter_queue
