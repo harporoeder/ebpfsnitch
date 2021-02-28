@@ -37,8 +37,9 @@ C++:
 [libbpf](https://github.com/libbpf/libbpf),
 [netfilter_queue](http://www.netfilter.org/projects/libnetfilter_queue/),
 [spdlog](https://github.com/gabime/spdlog),
-[fmt](https://github.com/fmtlib/fmt)
-[nfnetlink](https://www.netfilter.org/projects/libnfnetlink/index.html)
+[fmt](https://github.com/fmtlib/fmt),
+[nfnetlink](https://www.netfilter.org/projects/libnfnetlink/index.html),
+[boost](https://www.boost.org/)
 
 Python: [PyQT5](https://pypi.org/project/PyQt5/)
 
@@ -52,11 +53,12 @@ is Linux 5.8. This required version may be lowered in the future.
 On Arch which is the presently only tested system:
 
 ```bash
-pacman -S python3 python-pyqt5 clang cmake bpf libnetfilter_queue spdlog git
+pacman -S python3 python-pyqt5 clang cmake bpf libnetfilter_queue spdlog git boost
 git clone https://github.com/harporoeder/ebpfsnitch.git
 cd ebpfsnitch
 mkdir build
 cd build
 cmake ..
 make
+./ebpfsnitch --help
 ```
