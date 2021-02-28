@@ -34,6 +34,8 @@ public:
 
     void delete_rule(const std::string &p_rule_id) noexcept;
 
+    const nlohmann::json rules_to_json();
+
 private:
     struct clause_t {
         clause_t(const nlohmann::json &p_json);
@@ -54,7 +56,6 @@ private:
 
     static nlohmann::json clause_to_json(const clause_t &p_clause);
     static nlohmann::json rule_to_json(const rule_t &p_rule);
-    const nlohmann::json rules_to_json();
 
     std::shared_mutex m_lock;
 

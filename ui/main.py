@@ -51,6 +51,7 @@ class PromptDialog(QDialog):
 class MainWindow(QMainWindow):
     _prompt_trigger = QtCore.pyqtSignal()
     _add_rule_trigger = QtCore.pyqtSignal()
+    _clear_rules_trigger = QtCore.pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -78,6 +79,7 @@ class MainWindow(QMainWindow):
 
         self._prompt_trigger.connect(self.on_prompt_trigger)
         self._add_rule_trigger.connect(self.on_add_rule_trigger)
+        self._clear_rules_trigger.connect(self.on_clear_rules_trigger)
 
     def button_clicked(self):
         print("button click")
@@ -146,9 +148,29 @@ class MainWindow(QMainWindow):
     
         self._rules.addWidget(item)
 
+        self._done.set()
+
+    @QtCore.pyqtSlot()
+    def on_clear_rules_trigger(self):
+        print("clearing rules")
+
+        for i in reversed(range(self._rules.count())): 
+            self._rules.itemAt(i).widget().deleteLater()
+
+        self._rules.addWidget(QLabel("Firewall Rules:"))
+
+        self._done.set()
+
     def handle_add_rule(self, rule):
+        self._done.clear()
         self._new_rule = rule
         self._add_rule_trigger.emit()
+        self._done.wait()
+
+    def handle_clear_rules(self):
+        self._done.clear()
+        self._clear_rules_trigger.emit()
+        self._done.wait()
 
     def handle_prompt(self, question):
         self._done.clear()
@@ -244,6 +266,11 @@ async def reader_task(reader, writer, outbox):
             outbox.put_nowait(serialized)
         elif parsed["kind"] == "addRule":
             window.handle_add_rule(parsed["body"])
+        elif parsed["kind"] == "setRules":
+            window.handle_clear_rules()
+            for rule in parsed["rules"]:
+                print(rule)
+                window.handle_add_rule(rule)
         else:
             print("unknown command")
 
@@ -271,7 +298,7 @@ async def daemon_client_supervisor():
             print(repr(err))
         except FileNotFoundError as err:
             print(repr(err))
-
+        window.handle_clear_rules()
         print("retrying connection in one second")
         await asyncio.sleep(1)
 

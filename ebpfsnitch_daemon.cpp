@@ -718,6 +718,18 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
 
     bool awaitingAction = false;
 
+    {
+        m_log->info("sending initial ruleset to ui");
+
+        const nlohmann::json l_json = {
+            { "kind",   "setRules"                    },
+            { "rules",  m_rule_engine.rules_to_json() }
+        };
+
+        const std::string l_json_serialized = l_json.dump() + "\n";
+        writeAll(p_sock, l_json_serialized);
+    }
+
     while (true) {
         if (m_shutdown.load()) {
             break;
