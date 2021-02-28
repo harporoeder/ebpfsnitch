@@ -8,7 +8,11 @@ import time
 from PyQt5 import QtCore
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
-from PyQt5.QtCore import Qt 
+from PyQt5.QtCore import Qt
+
+# loop.call_soon_threadsafe(queue.put_nowait, time.time())
+g_outbox = None
+loop = asyncio.get_event_loop()
 
 class PromptDialog(QDialog):
     def __init__(self, question, parent=None):
@@ -43,7 +47,6 @@ class PromptDialog(QDialog):
         self.layout.addWidget(allowButton)
         self.layout.addWidget(denyButton)
         self.setLayout(self.layout)
-
 
 class MainWindow(QMainWindow):
     _prompt_trigger = QtCore.pyqtSignal()
@@ -87,12 +90,28 @@ class MainWindow(QMainWindow):
         self._forAllPort = dlg.forAllPort.isChecked()
         self._done.set()
 
+    def on_delete_rule_trigger(self, ruleId):
+        print("clicked rule delete: " + ruleId);
+
+        command = {
+            "kind": "removeRule",
+            "ruleId": ruleId
+        }
+
+        serialized = str.encode(json.dumps(command) + "\n")
+
+        loop.call_soon_threadsafe(g_outbox.put_nowait, serialized)
+
     @QtCore.pyqtSlot()
     def on_add_rule_trigger(self):
+        ruleId = self._new_rule["ruleId"]
+        delete_button = QPushButton("Remove Rule")
+        delete_button.clicked.connect(lambda: self.on_delete_rule_trigger(ruleId))
+
         header = QHBoxLayout()
         header.addWidget(QLabel("Rule UUID: " + self._new_rule["ruleId"]))
         header.addWidget(QLabel("Allow: " + str(self._new_rule["allow"])))
-        header.addWidget(QPushButton("Remove Rule"))
+        header.addWidget(delete_button)
         header_widget = QWidget()
         header_widget.setLayout(header)
 
@@ -165,9 +184,18 @@ menu.addAction(quitMenuAction)
 
 tray.setContextMenu(menu)
 
-async def daemon_client():
-    reader, writer = await asyncio.open_unix_connection("/tmp/ebpfsnitch.sock")
-    print("connected to daemon")
+async def writer_task(writer, outbox):
+    print("started writer_task")
+
+    while True:
+        item = await outbox.get()
+        print("sending outbox item")
+        writer.write(item)
+        await writer.drain()
+        outbox.task_done()
+
+async def reader_task(reader, writer, outbox):
+    print("started reader_task")
 
     while True:
         line = await reader.readuntil(separator=b'\n')
@@ -210,16 +238,25 @@ async def daemon_client():
 
             serialized = str.encode(json.dumps(command) + "\n")
 
-            writer.write(serialized)
-            await writer.drain()
+            outbox.put_nowait(serialized)
         elif parsed["kind"] == "addRule":
             window.handle_add_rule(parsed["body"])
         else:
             print("unknown command")
 
-    print('Close the connection')
-    writer.close()
-    await writer.wait_closed()
+async def daemon_client():
+    reader, writer = await asyncio.open_unix_connection("/tmp/ebpfsnitch.sock")
+    print("connected to daemon")
+
+    outbox = asyncio.Queue()
+
+    global g_outbox
+    g_outbox = outbox
+
+    await asyncio.wait([
+        asyncio.create_task(writer_task(writer, outbox)),
+        asyncio.create_task(reader_task(reader, writer, outbox))
+    ])
 
 async def daemon_client_supervisor():
     while True:
@@ -234,8 +271,6 @@ async def daemon_client_supervisor():
 
         print("retrying connection in one second")
         await asyncio.sleep(1)
-
-loop = asyncio.get_event_loop()
 
 def thread_function():
     print("start thread")

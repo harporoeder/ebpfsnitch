@@ -739,6 +739,8 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
                 process_unhandled();
 
                 awaitingAction = false;
+            } else if (l_verdict["kind"] == "removeRule") {
+                m_log->info("removing rule");
             }
         }
 
