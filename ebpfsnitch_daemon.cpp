@@ -21,6 +21,7 @@
 
 #include <fcntl.h> 
 #include <string.h>
+#include <grp.h>
 
 #include <libnetfilter_queue/libnetfilter_queue.h>
 
@@ -565,7 +566,17 @@ ebpfsnitch_daemon::control_thread()
             throw std::runtime_error("listen()");
         }
 
-        if (chmod("/tmp/ebpfsnitch.sock", 666) != 0){
+        const struct group *const l_group = getgrnam("wheel");
+
+        if (l_group == NULL) {
+            throw std::runtime_error("getgrnam()");
+        }
+
+        if (chown("/tmp/ebpfsnitch.sock", 0, l_group->gr_gid) == -1) {
+            throw std::runtime_error("chown()");
+        }
+
+        if (chmod("/tmp/ebpfsnitch.sock", 660) != 0){
             throw std::runtime_error("chmod()");
         }
 
