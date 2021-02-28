@@ -31,13 +31,17 @@ rule_engine_t::clause_t::clause_t(const nlohmann::json &p_json)
     m_value = p_json["value"];
 }
 
-rule_engine_t::rule_t::rule_t(const nlohmann::json &p_json)
-{
+rule_engine_t::rule_t::rule_t(
+    const nlohmann::json &p_json,
+    const std::string    &p_rule_id
+){
     m_allow = p_json["allow"];
 
     for (const auto &p_it : p_json["clauses"]) {
         m_clauses.push_back(clause_t(p_it));
     }
+
+    m_rule_id = p_rule_id;
 }
 
 rule_engine_t::rule_engine_t(){};
@@ -53,9 +57,22 @@ rule_engine_t::add_rule(const nlohmann::json &p_json)
 
     std::unique_lock l_guard(m_lock);
 
-    m_rules.push_back(rule_t(p_json));
+    m_rules.push_back(rule_t(p_json, l_uuid));
 
     return l_uuid;
+}
+
+void
+rule_engine_t::delete_rule(const std::string &p_rule_id) noexcept
+{
+    std::unique_lock l_guard(m_lock);
+
+    m_rules.erase(
+        std::remove_if(m_rules.begin(), m_rules.end(), [&](const auto &l_rule) {
+            return l_rule.m_rule_id == p_rule_id;
+        }),
+        m_rules.end()
+    );
 }
 
 const std::optional<bool>

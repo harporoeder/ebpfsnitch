@@ -30,6 +30,8 @@ public:
         const struct connection_info_t &p_info
     ) noexcept;
 
+    void delete_rule(const std::string &p_rule_id) noexcept;
+
 private:
     struct clause_t {
         clause_t(const nlohmann::json &p_json);
@@ -39,9 +41,11 @@ private:
     };
 
     struct rule_t {
-        rule_t(const nlohmann::json &p_json);
+        rule_t(const nlohmann::json &p_json, const std::string &p_rule_id);
 
         std::vector<struct clause_t> m_clauses;
+
+        std::string m_rule_id;
 
         bool m_allow;
     };

@@ -741,6 +741,8 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
                 awaitingAction = false;
             } else if (l_verdict["kind"] == "removeRule") {
                 m_log->info("removing rule");
+
+                m_rule_engine.delete_rule(l_verdict["ruleId"]);
             }
         }
 
