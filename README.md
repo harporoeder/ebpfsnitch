@@ -48,9 +48,11 @@ Python: [PyQT5](https://pypi.org/project/PyQt5/)
 eBPFSnitch currently requires a recent kernel. The minimum supported version
 is Linux 5.8. This required version may be lowered in the future.
 
-## Compilation instructions
+## Compilation and quick start instructions
 
 On Arch which is the presently only tested system:
+
+### Setting up the daemon
 
 ```bash
 pacman -S python3 python-pyqt5 clang cmake bpf libnetfilter_queue spdlog git boost
@@ -60,5 +62,12 @@ mkdir build
 cd build
 cmake ..
 make
-./ebpfsnitch --help
+sudo ./ebpfsnitch
+```
+
+### Starting the GUI
+
+```bash
+cd ui
+python3 main.py
 ```
