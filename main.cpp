@@ -2,10 +2,12 @@
 #include <mutex>
 #include <condition_variable>
 #include <exception>
+#include <iostream>
 
 #include <signal.h>
 #include <sys/resource.h>
 
+#include <boost/program_options.hpp>
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
@@ -58,8 +60,46 @@ set_limits()
 }
 
 int
-main()
+main(const int p_argc, const char** p_argv)
 {
+    try {
+        boost::program_options::options_description
+            l_description("eBPFSnitch Allowed options");
+
+        l_description.add_options()
+            ( "help,h",    "produce help message" )
+            ( "version,v", "print version"        );
+
+        boost::program_options::variables_map l_map;
+
+        boost::program_options::store(
+            boost::program_options::parse_command_line(
+                p_argc,
+                p_argv,
+                l_description
+            ),
+            l_map
+        );
+
+        boost::program_options::notify(l_map);
+
+        if (l_map.count("help")) {
+            std::cout << l_description;
+
+            return 0;
+        }
+
+        if (l_map.count("version")) {
+            std::cout << "0.1.0" << std::endl;
+
+            return 0;
+        }
+    } catch (const std::exception &l_err) {
+        std::cout << l_err.what() << std::endl;
+
+        return 1;
+    }
+
     g_log = spdlog::stdout_color_mt("console");
     g_log->set_level(spdlog::level::trace);
 

@@ -39,7 +39,7 @@ target_compile_options(
 
 # daemon target ----------------------------------------------------------------
 
-find_package( Boost REQUIRED COMPONENTS system )
+find_package( Boost REQUIRED COMPONENTS system program_options )
 
 add_executable(
     main
