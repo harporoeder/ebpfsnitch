@@ -54,10 +54,10 @@ On Arch which is the presently only tested system:
 
 ### Setting up the daemon
 
+From the eBPFSnitch repository directory:
+
 ```bash
-pacman -S python3 python-pyqt5 clang cmake bpf libnetfilter_queue spdlog git boost
-git clone https://github.com/harporoeder/ebpfsnitch.git
-cd ebpfsnitch
+sudo pacman -S clang cmake bpf libnetfilter_queue spdlog git boost
 mkdir build
 cd build
 cmake ..
@@ -67,7 +67,10 @@ sudo ./ebpfsnitch
 
 ### Starting the GUI
 
+From the eBPFSnitch repository directory:
+
 ```bash
+sudo pacman -S python3 python-pyqt5 
 cd ui
 python3 main.py
 ```
