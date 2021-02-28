@@ -25,6 +25,17 @@ field_from_string(const std::string &p_field)
     throw std::runtime_error("invalid field");
 }
 
+std::string
+field_to_string(const field_t p_field)
+{
+    switch (p_field) {
+        case field_t::executable:          return "executable";         break;
+        case field_t::destination_address: return "destinationAddress"; break;
+        case field_t::destination_port:    return "destinationPort";    break;
+        case field_t::container_id:        return "containerId";        break;
+    }
+}
+
 rule_engine_t::clause_t::clause_t(const nlohmann::json &p_json)
 {
     m_field  = field_from_string(p_json["field"]);
@@ -126,4 +137,41 @@ rule_engine_t::get_verdict(
     }
 
     return std::nullopt;
+}
+
+nlohmann::json
+rule_engine_t::clause_to_json(const clause_t &p_clause)
+{
+    return {
+        { "field",  field_to_string(p_clause.m_field) },
+        { "value", p_clause.m_value                }
+    };
+}
+
+nlohmann::json
+rule_engine_t::rule_to_json(const rule_t &p_rule)
+{
+    std::vector<nlohmann::json> l_clauses;
+
+    for (const auto &l_clause : p_rule.m_clauses) {
+        l_clauses.push_back(clause_to_json(l_clause));
+    }
+
+    return {
+        { "ruleId",  p_rule.m_rule_id },
+        { "allow",   p_rule.m_allow   },
+        { "clauses", l_clauses        }
+    };
+}
+
+const nlohmann::json
+rule_engine_t::rules_to_json()
+{
+    nlohmann::json l_result = nlohmann::json::array();
+
+    for (const auto &l_rule : m_rules) {
+        l_result.push_back(rule_to_json(l_rule));
+    }
+
+    return l_result;
 }

@@ -16,6 +16,8 @@ enum class field_t {
 
 field_t field_from_string(const std::string &p_field);
 
+std::string field_to_string(const field_t p_field);
+
 class rule_engine_t {
 public:
     rule_engine_t();
@@ -49,6 +51,10 @@ private:
 
         bool m_allow;
     };
+
+    static nlohmann::json clause_to_json(const clause_t &p_clause);
+    static nlohmann::json rule_to_json(const rule_t &p_rule);
+    const nlohmann::json rules_to_json();
 
     std::shared_mutex m_lock;
 
