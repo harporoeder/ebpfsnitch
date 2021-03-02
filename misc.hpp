@@ -74,5 +74,8 @@ ipv4_to_string(const uint32_t p_address);
 std::string
 file_to_string(const std::string &p_path);
 
+void
+atomically_write_file(const std::string &p_path, const std::string &p_data);
+
 uint64_t
 nanoseconds();

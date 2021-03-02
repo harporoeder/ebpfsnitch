@@ -1,4 +1,5 @@
 #include <unordered_map>
+#include <fstream>
 
 #include <boost/bimap.hpp>
 #include <boost/assign.hpp>
@@ -52,7 +53,10 @@ rule_engine_t::rule_t::rule_t(
     m_rule_id = p_rule_id;
 }
 
-rule_engine_t::rule_engine_t(){};
+rule_engine_t::rule_engine_t()
+{
+    try_load_rules();
+};
 
 rule_engine_t::~rule_engine_t(){};
 
@@ -66,6 +70,8 @@ rule_engine_t::add_rule(const nlohmann::json &p_json)
     std::unique_lock l_guard(m_lock);
 
     m_rules.push_back(rule_t(p_json, l_uuid));
+
+    save_rules();
 
     return l_uuid;
 }
@@ -81,6 +87,8 @@ rule_engine_t::delete_rule(const std::string &p_rule_id) noexcept
         }),
         m_rules.end()
     );
+
+    save_rules();
 }
 
 const std::optional<bool>
@@ -216,4 +224,34 @@ rule_engine_t::rules_to_json()
     }
 
     return l_result;
+}
+
+const void
+rule_engine_t::save_rules()
+{
+    atomically_write_file(
+        "rules.json",
+        rules_to_json().dump(4)
+    );
+}
+
+void
+rule_engine_t::try_load_rules()
+{
+    std::ifstream l_stream("rules.json");
+
+    if (l_stream.is_open() == false) {
+        return;
+    }
+
+    const nlohmann::json l_rules_json = nlohmann::json::parse(
+        std::string(
+            (std::istreambuf_iterator<char>(l_stream)),
+            std::istreambuf_iterator<char>()
+        )
+    );
+
+    for (const auto &p_it : l_rules_json) {
+        add_rule(p_it);
+    }
 }

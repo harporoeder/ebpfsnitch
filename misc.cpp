@@ -1,5 +1,6 @@
 #include <chrono>
 #include <fstream>
+#include <cstdio>
 
 #include <arpa/inet.h>
 #include <sys/socket.h>
@@ -71,6 +72,26 @@ file_to_string(const std::string &p_path) {
         (std::istreambuf_iterator<char>(l_stream)),
         std::istreambuf_iterator<char>()
     );
+}
+
+void
+atomically_write_file(const std::string &p_path, const std::string &p_data)
+{
+    const std::string l_temp_path = p_path + ".tmp";
+
+    std::ofstream l_stream(l_temp_path);
+
+    if (!l_stream) {
+        throw std::runtime_error("std::of_stream() failed");
+    }
+
+    l_stream << p_data;
+
+    l_stream.close();
+
+    if (std::rename(l_temp_path.c_str(), p_path.c_str())) {
+        throw std::runtime_error("std::rename failed");
+    }
 }
 
 std::string

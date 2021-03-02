@@ -64,4 +64,7 @@ private:
     std::shared_mutex m_lock;
 
     std::vector<struct rule_t> m_rules;
+
+    const void save_rules();
+    void try_load_rules();
 };
