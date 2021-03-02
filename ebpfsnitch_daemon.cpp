@@ -404,21 +404,20 @@ ebpfsnitch_daemon::nfq_handler(
         return 0;
     }
 
-    l_nfq_event.m_protocol = *((uint8_t*) (l_data + 9));
+    const ip_protocol_t l_proto =
+        static_cast<ip_protocol_t>(*((uint8_t*) (l_data + 9)));
 
-    const ip_protocol_t p_proto =
-        static_cast<ip_protocol_t>(l_nfq_event.m_protocol);
-
-    if (p_proto != ip_protocol_t::TCP && p_proto != ip_protocol_t::UDP) {
+    if (l_proto != ip_protocol_t::TCP && l_proto != ip_protocol_t::UDP) {
         m_log->error(
             "unknown allowing unhandled protocol {} {}",
-            ip_protocol_to_string(p_proto),
+            ip_protocol_to_string(l_proto),
             l_nfq_event.m_protocol
         );
         set_verdict(l_nfq_event.m_nfq_id, NF_ACCEPT);
         return 0;
     }
 
+    l_nfq_event.m_protocol            = l_proto;
     l_nfq_event.m_source_address      = *((uint32_t*) (l_data + 12));
     l_nfq_event.m_destination_address = *((uint32_t*) (l_data + 16));
     l_nfq_event.m_source_port         = ntohs(*((uint16_t*) (l_data + 20)));

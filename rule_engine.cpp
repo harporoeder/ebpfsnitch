@@ -1,39 +1,32 @@
 #include <unordered_map>
 
+#include <boost/bimap.hpp>
+#include <boost/assign.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 
 #include "rule_engine.hpp"
 
-const std::unordered_map<std::string, field_t> g_field_map = {
-    { "executable",         field_t::executable          },
-    { "destinationAddress", field_t::destination_address },
-    { "destinationPort",    field_t::destination_port    },
-    { "containerId",        field_t::container_id        }
-};
+typedef boost::bimaps::bimap<field_t, std::string> g_field_map_type;
+
+const g_field_map_type g_field_map =
+    boost::assign::list_of<g_field_map_type::relation>
+        ( field_t::executable,          "executable"         )
+        ( field_t::destination_address, "destinationAddress" )
+        ( field_t::destination_port,    "destinationPort"    )
+        ( field_t::container_id,        "containerId"        );
 
 field_t
 field_from_string(const std::string &p_field)
 {
-    const auto l_iter = g_field_map.find(p_field);
-
-    if (l_iter != g_field_map.end()) {
-        return l_iter->second;
-    }
-
-    throw std::runtime_error("invalid field");
+    return g_field_map.right.find(p_field)->second;
 }
 
 std::string
 field_to_string(const field_t p_field)
 {
-    switch (p_field) {
-        case field_t::executable:          return "executable";         break;
-        case field_t::destination_address: return "destinationAddress"; break;
-        case field_t::destination_port:    return "destinationPort";    break;
-        case field_t::container_id:        return "containerId";        break;
-    }
+    return g_field_map.left.find(p_field)->second;
 }
 
 rule_engine_t::clause_t::clause_t(const nlohmann::json &p_json)
@@ -119,6 +112,13 @@ rule_engine_t::get_verdict(
                     if (l_clause.m_value !=
                         std::to_string(p_nfq_event.m_destination_port))
                     {
+                        l_match = false;
+                    }
+
+                    break;
+                }
+                case field_t::container_id: {
+                    if (l_clause.m_value != p_info.m_container) {
                         l_match = false;
                     }
 
