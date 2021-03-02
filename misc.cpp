@@ -44,9 +44,24 @@ typedef boost::bimaps::bimap<ip_protocol_t, std::string> g_protocol_map_type;
 
 const g_protocol_map_type g_protocol_map =
     boost::assign::list_of<g_protocol_map_type::relation>
-        ( ip_protocol_t::ICMP, "ICMP" )
-        ( ip_protocol_t::TCP,  "TCP"  )
-        ( ip_protocol_t::UDP,  "UDP"  );
+        ( ip_protocol_t::HOPOPT,    "HOPOPT"    )
+        ( ip_protocol_t::ICMP,      "ICMP"      )
+        ( ip_protocol_t::IGMP,      "IGMP"      )
+        ( ip_protocol_t::GGP,       "GGP"       )
+        ( ip_protocol_t::IPV4,      "IPV4"      )
+        ( ip_protocol_t::ST,        "ST"        )
+        ( ip_protocol_t::TCP,       "TCP"       )
+        ( ip_protocol_t::CBT,       "CBT"       )
+        ( ip_protocol_t::EGP,       "EGP"       )
+        ( ip_protocol_t::IGP,       "IGP"       )
+        ( ip_protocol_t::BBNRCCMON, "BBNRCCMON" )
+        ( ip_protocol_t::NVPII,     "NVPII"     )
+        ( ip_protocol_t::PUP,       "PUP"       )
+        ( ip_protocol_t::ARGUS,     "ARGUS"     )
+        ( ip_protocol_t::EMCON,     "EMCON"     )
+        ( ip_protocol_t::XNET,      "XNET"      )
+        ( ip_protocol_t::CHAOS,     "CHAOS"     )
+        ( ip_protocol_t::UDP,       "UDP"       );
 
 ip_protocol_t
 ip_protocol_from_string(const std::string &p_protocol)

@@ -19,10 +19,26 @@ enum class nf_hook_t : uint8_t {
 std::string
 nf_hook_to_string(const nf_hook_t p_hook);
 
+// https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
 enum class ip_protocol_t : uint8_t {
-    ICMP = 1,
-    TCP  = 6,
-    UDP  = 17
+    HOPOPT    = 0,
+    ICMP      = 1,
+    IGMP      = 2,
+    GGP       = 3,
+    IPV4      = 4,
+    ST        = 5,
+    TCP       = 6,
+    CBT       = 7,
+    EGP       = 8,
+    IGP       = 9,
+    BBNRCCMON = 10,
+    NVPII     = 11,
+    PUP       = 12,
+    ARGUS     = 13,
+    EMCON     = 14,
+    XNET      = 15,
+    CHAOS     = 16,
+    UDP       = 17
 };
 
 std::string
