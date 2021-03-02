@@ -23,8 +23,8 @@ class PromptDialog(QDialog):
         allowButton = QPushButton("Allow")
         denyButton = QPushButton("Deny")
 
-        self.forAllAddress = QCheckBox("All Destination Addresses")
-        self.forAllPort = QCheckBox("All Destination Ports")
+        self.forAllDestinationAddresses = QCheckBox("All Destination Addresses")
+        self.forAllDestinationPorts     = QCheckBox("All Destination Ports")
 
         allowButton.clicked.connect(self.accept)
         denyButton.clicked.connect(self.reject)
@@ -41,8 +41,8 @@ class PromptDialog(QDialog):
         self.layout.addWidget(QLabel("Source: " + source))
         self.layout.addWidget(QLabel("Destination: " + destination))
         self.layout.addWidget(QLabel("Container " + str(question["container"])))
-        self.layout.addWidget(self.forAllAddress)
-        self.layout.addWidget(self.forAllPort)
+        self.layout.addWidget(self.forAllDestinationAddresses)
+        self.layout.addWidget(self.forAllDestinationPorts)
         self.layout.addWidget(allowButton)
         self.layout.addWidget(denyButton)
         self.setLayout(self.layout)
@@ -86,9 +86,12 @@ class MainWindow(QMainWindow):
     @QtCore.pyqtSlot()
     def on_prompt_trigger(self):        
         dlg = PromptDialog(self._question)
-        self._allow = bool(dlg.exec_())
-        self._forAllAddress = dlg.forAllAddress.isChecked()
-        self._forAllPort = dlg.forAllPort.isChecked()
+        allow = bool(dlg.exec_())
+        self._verdict = {
+            "allow":         allow,
+            "forAllDestinationAddresses":      dlg.forAllDestinationAddresses.isChecked(),
+            "forAllDestinationAddressesPorts": dlg.forAllDestinationPorts.isChecked()
+        }
         self._done.set()
 
     def on_delete_rule_trigger(self, ruleId, widget):
@@ -176,11 +179,7 @@ class MainWindow(QMainWindow):
         self._question = question
         self._prompt_trigger.emit()
         self._done.wait()
-        return {
-            "allow": self._allow,
-            "forAllAddress": self._forAllAddress,
-            "forAllPort": self._forAllPort
-        }
+        return self._verdict
 
 app = QApplication(sys.argv)
 app.setQuitOnLastWindowClosed(False)
@@ -244,7 +243,7 @@ async def reader_task(reader, writer, outbox):
                 ]
             }
 
-            if result["forAllAddress"] == False:
+            if result["forAllDestinationAddresses"] == False:
                 command["clauses"].append(
                     {
                         "field": "destinationAddress",
@@ -252,7 +251,7 @@ async def reader_task(reader, writer, outbox):
                     }
                 )
 
-            if result["forAllPort"] == False:
+            if result["forAllDestinationAddressesPorts"] == False:
                 command["clauses"].append(
                     {
                         "field": "destinationPort",
