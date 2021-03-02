@@ -20,11 +20,6 @@ class PromptDialog(QDialog):
 
         self.setWindowTitle("eBPFSnitch Dialog")
 
-        message1 = QLabel("Application: " + question["executable"])
-        message2 = QLabel("Destination Address: " + question["destinationAddress"])
-        message3 = QLabel("Destination Port: " + str(question["destinationPort"]))
-        message4 = QLabel("Container " + str(question["container"]))
-
         allowButton = QPushButton("Allow")
         denyButton = QPushButton("Deny")
 
@@ -37,11 +32,15 @@ class PromptDialog(QDialog):
         allowButton.setAutoDefault(False)
         denyButton.setAutoDefault(False)
 
+        source      = question["sourceAddress"]      + ":" + str(question["sourcePort"])
+        destination = question["destinationAddress"] + ":" + str(question["destinationPort"])
+
         self.layout = QVBoxLayout()
-        self.layout.addWidget(message1)
-        self.layout.addWidget(message2)
-        self.layout.addWidget(message3)
-        self.layout.addWidget(message4)
+        self.layout.addWidget(QLabel("Application: " + question["executable"]))
+        self.layout.addWidget(QLabel("Protocol " + str(question["protocol"])))
+        self.layout.addWidget(QLabel("Source: " + source))
+        self.layout.addWidget(QLabel("Destination: " + destination))
+        self.layout.addWidget(QLabel("Container " + str(question["container"])))
         self.layout.addWidget(self.forAllAddress)
         self.layout.addWidget(self.forAllPort)
         self.layout.addWidget(allowButton)

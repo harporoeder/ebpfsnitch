@@ -811,7 +811,9 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
             { "destinationPort",    l_nfq_event.m_destination_port },
             { "destinationAddress",
                 ipv4_to_string(l_nfq_event.m_destination_address)  },
-            { "container",          l_info.m_container             }
+            { "container",          l_info.m_container             },
+            { "protocol",
+                ip_protocol_to_string(l_nfq_event.m_protocol)      }
         };
 
         const std::string l_json_serialized = l_json.dump() + "\n";
