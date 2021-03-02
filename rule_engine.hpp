@@ -12,7 +12,8 @@ enum class field_t {
     destination_address,
     destination_port,
     container_id,
-    protocol
+    protocol,
+    user_id
 };
 
 field_t field_from_string(const std::string &p_field);

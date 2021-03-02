@@ -26,6 +26,7 @@ class PromptDialog(QDialog):
         self.forAllDestinationAddresses = QCheckBox("Allow all Destination Addresses")
         self.forAllDestinationPorts     = QCheckBox("Allow all Destination Ports")
         self.forAllProtocols            = QCheckBox("Allow all Protocols")
+        self.forAllUIDs                 = QCheckBox("Allow all UIDs")
 
         allowButton.clicked.connect(self.accept)
         denyButton.clicked.connect(self.reject)
@@ -38,13 +39,15 @@ class PromptDialog(QDialog):
 
         self.layout = QVBoxLayout()
         self.layout.addWidget(QLabel("Application: " + question["executable"]))
-        self.layout.addWidget(QLabel("Protocol " + str(question["protocol"])))
+        self.layout.addWidget(QLabel("Protocol: " + str(question["protocol"])))
         self.layout.addWidget(QLabel("Source: " + source))
         self.layout.addWidget(QLabel("Destination: " + destination))
-        self.layout.addWidget(QLabel("Container " + str(question["container"])))
+        self.layout.addWidget(QLabel("Container: " + str(question["container"])))
+        self.layout.addWidget(QLabel("UID: "  + str(question["userId"])))
         self.layout.addWidget(self.forAllDestinationAddresses)
         self.layout.addWidget(self.forAllDestinationPorts)
         self.layout.addWidget(self.forAllProtocols)
+        self.layout.addWidget(self.forAllUIDs)
         self.layout.addWidget(allowButton)
         self.layout.addWidget(denyButton)
         self.setLayout(self.layout)
@@ -93,7 +96,8 @@ class MainWindow(QMainWindow):
             "allow":                           allow,
             "forAllDestinationAddresses":      dlg.forAllDestinationAddresses.isChecked(),
             "forAllDestinationAddressesPorts": dlg.forAllDestinationPorts.isChecked(),
-            "forAllProtocols":                 dlg.forAllProtocols.isChecked()
+            "forAllProtocols":                 dlg.forAllProtocols.isChecked(),
+            "forAllUIDs":                      dlg.forAllUIDs.isChecked()
         }
         self._done.set()
 
@@ -267,6 +271,14 @@ async def reader_task(reader, writer, outbox):
                     {
                         "field": "protocol",
                         "value": parsed["protocol"]
+                    }
+                )
+
+            if result["forAllUIDs"] == False:
+                command["clauses"].append(
+                    {
+                        "field": "userId",
+                        "value": str(parsed["userId"])
                     }
                 )
 
