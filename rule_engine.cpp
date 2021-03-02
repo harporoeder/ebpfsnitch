@@ -15,7 +15,8 @@ const g_field_map_type g_field_map =
         ( field_t::executable,          "executable"         )
         ( field_t::destination_address, "destinationAddress" )
         ( field_t::destination_port,    "destinationPort"    )
-        ( field_t::container_id,        "containerId"        );
+        ( field_t::container_id,        "containerId"        )
+        ( field_t::protocol,            "protocol"           );
 
 field_t
 field_from_string(const std::string &p_field)
@@ -119,6 +120,16 @@ rule_engine_t::get_verdict(
                 }
                 case field_t::container_id: {
                     if (l_clause.m_value != p_info.m_container) {
+                        l_match = false;
+                    }
+
+                    break;
+                }
+                case field_t::protocol: {
+                    const std::string l_protocol =
+                        ip_protocol_to_string(p_nfq_event.m_protocol);
+
+                    if (l_clause.m_value != l_protocol) {
                         l_match = false;
                     }
 

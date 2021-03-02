@@ -23,8 +23,9 @@ class PromptDialog(QDialog):
         allowButton = QPushButton("Allow")
         denyButton = QPushButton("Deny")
 
-        self.forAllDestinationAddresses = QCheckBox("All Destination Addresses")
-        self.forAllDestinationPorts     = QCheckBox("All Destination Ports")
+        self.forAllDestinationAddresses = QCheckBox("Allow all Destination Addresses")
+        self.forAllDestinationPorts     = QCheckBox("Allow all Destination Ports")
+        self.forAllProtocols            = QCheckBox("Allow all Protocols")
 
         allowButton.clicked.connect(self.accept)
         denyButton.clicked.connect(self.reject)
@@ -43,6 +44,7 @@ class PromptDialog(QDialog):
         self.layout.addWidget(QLabel("Container " + str(question["container"])))
         self.layout.addWidget(self.forAllDestinationAddresses)
         self.layout.addWidget(self.forAllDestinationPorts)
+        self.layout.addWidget(self.forAllProtocols)
         self.layout.addWidget(allowButton)
         self.layout.addWidget(denyButton)
         self.setLayout(self.layout)
@@ -88,9 +90,10 @@ class MainWindow(QMainWindow):
         dlg = PromptDialog(self._question)
         allow = bool(dlg.exec_())
         self._verdict = {
-            "allow":         allow,
+            "allow":                           allow,
             "forAllDestinationAddresses":      dlg.forAllDestinationAddresses.isChecked(),
-            "forAllDestinationAddressesPorts": dlg.forAllDestinationPorts.isChecked()
+            "forAllDestinationAddressesPorts": dlg.forAllDestinationPorts.isChecked(),
+            "forAllProtocols":                 dlg.forAllProtocols.isChecked()
         }
         self._done.set()
 
@@ -256,6 +259,14 @@ async def reader_task(reader, writer, outbox):
                     {
                         "field": "destinationPort",
                         "value": str(parsed["destinationPort"])
+                    }
+                )
+
+            if result["forAllProtocols"] == False:
+                command["clauses"].append(
+                    {
+                        "field": "protocol",
+                        "value": parsed["protocol"]
                     }
                 )
 
