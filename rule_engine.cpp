@@ -44,13 +44,13 @@ rule_engine_t::rule_t::rule_t(
     const nlohmann::json &p_json,
     const std::string    &p_rule_id
 ){
-    m_allow = p_json["allow"];
+    m_allow    = p_json["allow"];
+    m_priority = p_json["priority"];
+    m_rule_id  = p_rule_id;
 
     for (const auto &p_it : p_json["clauses"]) {
         m_clauses.push_back(clause_t(p_it));
     }
-
-    m_rule_id = p_rule_id;
 }
 
 rule_engine_t::rule_engine_t()
@@ -70,6 +70,12 @@ rule_engine_t::add_rule(const nlohmann::json &p_json)
     std::unique_lock l_guard(m_lock);
 
     m_rules.push_back(rule_t(p_json, l_uuid));
+
+    std::sort(m_rules.begin(), m_rules.end(),
+        [](const auto &p_left, const auto &p_right) {
+            return p_left.m_priority < p_right.m_priority;
+        }
+    );
 
     save_rules();
 
@@ -208,9 +214,10 @@ rule_engine_t::rule_to_json(const rule_t &p_rule)
     }
 
     return {
-        { "ruleId",  p_rule.m_rule_id },
-        { "allow",   p_rule.m_allow   },
-        { "clauses", l_clauses        }
+        { "ruleId",   p_rule.m_rule_id   },
+        { "allow",    p_rule.m_allow     },
+        { "clauses",  l_clauses          },
+        { "priority", p_rule.m_priority  }
     };
 }
 

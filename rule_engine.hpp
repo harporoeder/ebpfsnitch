@@ -52,10 +52,9 @@ private:
         rule_t(const nlohmann::json &p_json, const std::string &p_rule_id);
 
         std::vector<struct clause_t> m_clauses;
-
-        std::string m_rule_id;
-
-        bool m_allow;
+        std::string                  m_rule_id;
+        bool                         m_allow;
+        uint32_t                     m_priority;
     };
 
     static nlohmann::json clause_to_json(const clause_t &p_clause);

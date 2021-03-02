@@ -29,8 +29,12 @@ class PromptDialog(QDialog):
         self.forAllSourcePorts          = QCheckBox("All Source Ports")
         self.forAllProtocols            = QCheckBox("All Protocols")
         self.forAllUIDs                 = QCheckBox("All UIDs")
+        self.priority                   = QSpinBox()
 
         self.forAllSourcePorts.setChecked(True)
+        self.priority.setRange(0, 2147483647)
+        self.priority.setValue(50)
+        self.priority.setSingleStep(1)
 
         allowButton.clicked.connect(self.accept)
         denyButton.clicked.connect(self.reject)
@@ -54,6 +58,7 @@ class PromptDialog(QDialog):
         self.layout.addWidget(self.forAllSourcePorts)
         self.layout.addWidget(self.forAllProtocols)
         self.layout.addWidget(self.forAllUIDs)
+        self.layout.addWidget(self.priority)
         self.layout.addWidget(allowButton)
         self.layout.addWidget(denyButton)
         self.setLayout(self.layout)
@@ -106,6 +111,7 @@ class MainWindow(QMainWindow):
             "forAllUIDs":                 dlg.forAllUIDs.isChecked(),
             "forAllSourceAddresses":      dlg.forAllSourceAddresses.isChecked(),
             "forAllSourcePorts":          dlg.forAllSourcePorts.isChecked(),
+            "priority":                   dlg.priority.value()
         }
         self._done.set()
 
@@ -131,6 +137,7 @@ class MainWindow(QMainWindow):
         header = QHBoxLayout()
         header.addWidget(QLabel("Rule UUID: " + self._new_rule["ruleId"]))
         header.addWidget(QLabel("Allow: " + str(self._new_rule["allow"])))
+        header.addWidget(QLabel("Priority: " + str(self._new_rule["priority"])))
         header.addWidget(delete_button)
         header_widget = QWidget()
         header_widget.setLayout(header)
@@ -250,6 +257,7 @@ async def reader_task(reader, writer, outbox):
             command = {
                 "kind": "addRule",
                 "allow": result["allow"],
+                "priority": result["priority"],
                 "clauses": [
                     {
                         "field": "executable",
