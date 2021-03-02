@@ -23,10 +23,10 @@ class PromptDialog(QDialog):
         allowButton = QPushButton("Allow")
         denyButton = QPushButton("Deny")
 
-        self.forAllDestinationAddresses = QCheckBox("Allow all Destination Addresses")
-        self.forAllDestinationPorts     = QCheckBox("Allow all Destination Ports")
-        self.forAllProtocols            = QCheckBox("Allow all Protocols")
-        self.forAllUIDs                 = QCheckBox("Allow all UIDs")
+        self.forAllDestinationAddresses = QCheckBox("All Destination Addresses")
+        self.forAllDestinationPorts     = QCheckBox("All Destination Ports")
+        self.forAllProtocols            = QCheckBox("All Protocols")
+        self.forAllUIDs                 = QCheckBox("All UIDs")
 
         allowButton.clicked.connect(self.accept)
         denyButton.clicked.connect(self.reject)
