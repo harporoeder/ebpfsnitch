@@ -15,6 +15,8 @@ const g_field_map_type g_field_map =
         ( field_t::executable,          "executable"         )
         ( field_t::destination_address, "destinationAddress" )
         ( field_t::destination_port,    "destinationPort"    )
+        ( field_t::source_address,      "sourceAddress"      )
+        ( field_t::source_port,         "sourcePort"         )
         ( field_t::container_id,        "containerId"        )
         ( field_t::protocol,            "protocol"           )
         ( field_t::user_id,             "userId"             );
@@ -113,6 +115,25 @@ rule_engine_t::get_verdict(
                 case field_t::destination_port: {
                     if (l_clause.m_value !=
                         std::to_string(p_nfq_event.m_destination_port))
+                    {
+                        l_match = false;
+                    }
+
+                    break;
+                }
+                case field_t::source_address: {
+                    const std::string l_addr =
+                        ipv4_to_string(p_nfq_event.m_source_address);
+
+                    if (l_clause.m_value != l_addr) {
+                        l_match = false;
+                    }
+
+                    break;
+                }
+                case field_t::source_port: {
+                    if (l_clause.m_value !=
+                        std::to_string(p_nfq_event.m_source_port))
                     {
                         l_match = false;
                     }

@@ -11,6 +11,8 @@ enum class field_t {
     executable,
     destination_address,
     destination_port,
+    source_address,
+    source_port,
     container_id,
     protocol,
     user_id

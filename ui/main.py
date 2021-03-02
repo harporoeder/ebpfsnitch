@@ -25,8 +25,12 @@ class PromptDialog(QDialog):
 
         self.forAllDestinationAddresses = QCheckBox("All Destination Addresses")
         self.forAllDestinationPorts     = QCheckBox("All Destination Ports")
+        self.forAllSourceAddresses      = QCheckBox("All Source Addresses")
+        self.forAllSourcePorts          = QCheckBox("All Source Ports")
         self.forAllProtocols            = QCheckBox("All Protocols")
         self.forAllUIDs                 = QCheckBox("All UIDs")
+
+        self.forAllSourcePorts.setChecked(True)
 
         allowButton.clicked.connect(self.accept)
         denyButton.clicked.connect(self.reject)
@@ -46,6 +50,8 @@ class PromptDialog(QDialog):
         self.layout.addWidget(QLabel("UID: "  + str(question["userId"])))
         self.layout.addWidget(self.forAllDestinationAddresses)
         self.layout.addWidget(self.forAllDestinationPorts)
+        self.layout.addWidget(self.forAllSourceAddresses)
+        self.layout.addWidget(self.forAllSourcePorts)
         self.layout.addWidget(self.forAllProtocols)
         self.layout.addWidget(self.forAllUIDs)
         self.layout.addWidget(allowButton)
@@ -93,11 +99,13 @@ class MainWindow(QMainWindow):
         dlg = PromptDialog(self._question)
         allow = bool(dlg.exec_())
         self._verdict = {
-            "allow":                           allow,
-            "forAllDestinationAddresses":      dlg.forAllDestinationAddresses.isChecked(),
-            "forAllDestinationAddressesPorts": dlg.forAllDestinationPorts.isChecked(),
-            "forAllProtocols":                 dlg.forAllProtocols.isChecked(),
-            "forAllUIDs":                      dlg.forAllUIDs.isChecked()
+            "allow":                      allow,
+            "forAllDestinationAddresses": dlg.forAllDestinationAddresses.isChecked(),
+            "forAllDestinationPorts":     dlg.forAllDestinationPorts.isChecked(),
+            "forAllProtocols":            dlg.forAllProtocols.isChecked(),
+            "forAllUIDs":                 dlg.forAllUIDs.isChecked(),
+            "forAllSourceAddresses":      dlg.forAllSourceAddresses.isChecked(),
+            "forAllSourcePorts":          dlg.forAllSourcePorts.isChecked(),
         }
         self._done.set()
 
@@ -258,11 +266,27 @@ async def reader_task(reader, writer, outbox):
                     }
                 )
 
-            if result["forAllDestinationAddressesPorts"] == False:
+            if result["forAllDestinationPorts"] == False:
                 command["clauses"].append(
                     {
                         "field": "destinationPort",
                         "value": str(parsed["destinationPort"])
+                    }
+                )
+
+            if result["forAllSourceAddresses"] == False:
+                command["clauses"].append(
+                    {
+                        "field": "sourceAddress",
+                        "value": parsed["sourceAddress"]
+                    }
+                )
+
+            if result["forAllSourcePorts"] == False:
+                command["clauses"].append(
+                    {
+                        "field": "sourcePort",
+                        "value": str(parsed["sourcePort"])
                     }
                 )
 
