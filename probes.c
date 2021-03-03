@@ -310,7 +310,7 @@ msendret(const struct pt_regs *const p_context_ignore)
             &l_destination_port,
             sizeof(l_destination_port),
             &l_sock->__sk_common.skc_dport
-        ) != 0
+        ) != 0 || l_destination_port == 0
     ) {
         if (
             bpf_probe_read(
@@ -330,7 +330,7 @@ msendret(const struct pt_regs *const p_context_ignore)
             &l_destination_address,
             sizeof(l_destination_address),
             &l_sock->__sk_common.skc_daddr
-        ) != 0
+        ) != 0 || l_destination_address == 0
     ) {
         if (
             bpf_probe_read(
