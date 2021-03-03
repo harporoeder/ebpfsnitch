@@ -35,16 +35,24 @@ iptables_raii::iptables_raii(std::shared_ptr<spdlog::logger> p_log):
 {
     m_log->trace("adding iptables rules");
 
-    std::system("iptables -A OUTPUT -j NFQUEUE --queue-num 0");
-    std::system("iptables -I DOCKER-USER -i docker0 ! -o docker0 -j NFQUEUE --queue-num 0");
+    std::system("iptables --append OUTPUT --jump NFQUEUE --queue-num 0");
+
+    std::system(
+        "iptables --insert DOCKER-USER --in-interface docker0 ! "
+        "--out-interface docker0 --jump NFQUEUE --queue-num 0"
+    );
 }
 
 iptables_raii::~iptables_raii()
 {
     m_log->trace("removing iptables rules");
 
-    std::system("iptables -D OUTPUT -j NFQUEUE --queue-num 0");
-    std::system("iptables -D DOCKER-USER -i docker0 ! -o docker0  -j NFQUEUE --queue-num 0");
+    std::system("iptables --delete OUTPUT --jump NFQUEUE --queue-num 0");
+
+    std::system(
+        "iptables --delete DOCKER-USER --in-interface docker0 ! "
+        "--out-interface docker0 --jump NFQUEUE --queue-num 0"
+    );
 }
 
 ebpfsnitch_daemon::ebpfsnitch_daemon(
@@ -815,7 +823,7 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
         const nlohmann::json l_json = {
             { "kind",               "query"                        },
             { "executable",         l_info.m_executable            },
-            { "userId",             l_nfq_event.m_user_id          },
+            { "userId",             l_info.m_user_id               },
             { "processId",          l_info.m_process_id            },
             { "sourceAddress",
                 ipv4_to_string(l_nfq_event.m_source_address)       },
