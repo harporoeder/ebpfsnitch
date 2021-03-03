@@ -247,6 +247,8 @@ ebpfsnitch_daemon::bpf_reader(
         return;
     }
 
+    // m_log->info("got protocol {}", l_info->m_family);
+
     const uint16_t l_source_port      = l_info->m_source_port;
     const uint16_t l_destination_port = ntohs(l_info->m_destination_port);
 
@@ -269,14 +271,16 @@ ebpfsnitch_daemon::bpf_reader(
     /*
     m_log->info(
         "got event handle {} uid {} pid {} sourcePort {} sourceAddress {} "
-        "destinationPort {} destinationAddress {}",
+        "destinationPort {} destinationAddress {} protocol {} exe {}",
         l_info->m_handle,
         l_info->m_user_id,
         l_info->m_process_id,
         l_source_port,
         l_source_address,
         l_destination_port,
-        l_destination_address
+        l_destination_address,
+        l_info->m_family,
+        l_process_info.m_executable
     );
     */
 
