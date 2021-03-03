@@ -411,6 +411,7 @@ ebpfsnitch_daemon::nfq_handler(
     const ip_protocol_t l_proto =
         static_cast<ip_protocol_t>(*((uint8_t*) (l_data + 9)));
 
+    /*
     if (l_proto != ip_protocol_t::TCP && l_proto != ip_protocol_t::UDP) {
         m_log->error(
             "unknown allowing unhandled protocol {} {}",
@@ -420,13 +421,20 @@ ebpfsnitch_daemon::nfq_handler(
         set_verdict(l_nfq_event.m_nfq_id, NF_ACCEPT);
         return 0;
     }
+    */
 
     l_nfq_event.m_protocol            = l_proto;
     l_nfq_event.m_source_address      = *((uint32_t*) (l_data + 12));
     l_nfq_event.m_destination_address = *((uint32_t*) (l_data + 16));
-    l_nfq_event.m_source_port         = ntohs(*((uint16_t*) (l_data + 20)));
-    l_nfq_event.m_destination_port    = ntohs(*((uint16_t*) (l_data + 22)));
     l_nfq_event.m_timestamp           = nanoseconds();
+    
+    if (l_proto == ip_protocol_t::TCP || l_proto == ip_protocol_t::UDP) {
+        l_nfq_event.m_source_port      = ntohs(*((uint16_t*) (l_data + 20)));
+        l_nfq_event.m_destination_port = ntohs(*((uint16_t*) (l_data + 22)));
+    } else {
+        l_nfq_event.m_source_port      = 0;
+        l_nfq_event.m_destination_port = 0;
+    }
 
     if ((nfq_get_skbinfo(p_nfa) & NFQA_SKB_GSO) != 0){
         m_log->error("NFQA_SKB_GSO {}", nfq_event_to_string(l_nfq_event));
