@@ -200,7 +200,7 @@ ebpfsnitch_daemon::filter_thread()
         int l_ret = poll(&l_poll_fd, 1, 1000);
 
         if (l_ret < 0) {
-            m_log->error("poll() error {}", l_ret);
+            m_log->error("poll() error {}", strerror(errno));
 
             break;
         } else if (l_ret == 0) {
@@ -210,9 +210,15 @@ ebpfsnitch_daemon::filter_thread()
         l_ret = recv(m_nfq_fd, l_buffer, sizeof(l_buffer), 0);
 
         if (l_ret <= 0) {
-            m_log->error("recv() error {}", l_ret);
+            if (errno == ENOBUFS) {
+                m_log->warn("nfq too slow ENOBUFS");
 
-            break;
+                continue;
+            } else {
+                m_log->error("recv() error {}", strerror(errno));
+
+                break;
+            }
         }
 
         nfq_handle_packet(m_nfq_handle, l_buffer, l_ret);
