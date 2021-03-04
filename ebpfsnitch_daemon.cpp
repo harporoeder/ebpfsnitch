@@ -401,6 +401,41 @@ ebpfsnitch_daemon::process_nfq_event(
 }
 
 int
+ebpfsnitch_daemon::nfq_handler2(const struct nlmsghdr *const p_header)
+{
+    struct nlattr *l_attributes[NFQA_MAX + 1] = {};
+    
+    if (nfq_nlmsg_parse(p_header, l_attributes) < 0) {
+        m_log->error("nfq_nlmsg_parse() failed");
+
+        return MNL_CB_ERROR;
+    }
+
+    if (l_attributes[NFQA_PACKET_HDR] == NULL) {
+        m_log->error("l_attributes[NFQA_PACKET_HDR] failed");
+
+        return MNL_CB_ERROR;
+    }
+
+    struct nfgenmsg *l_nfgen_message = (struct nfgenmsg *)
+        mnl_nlmsg_get_payload(p_header);
+
+    struct nfqnl_msg_packet_hdr *l_packet_header =
+        (struct nfqnl_msg_packet_hdr *)
+        mnl_attr_get_payload(l_attributes[NFQA_PACKET_HDR]);
+
+    const uint16_t l_payload_length =
+        mnl_attr_get_payload_len(l_attributes[NFQA_PAYLOAD]);
+
+    const char *l_payload = (char *)
+        mnl_attr_get_payload(l_attributes[NFQA_PAYLOAD]);
+
+    const uint32_t l_packet_id = ntohl(l_packet_header->packet_id);
+
+    return MNL_CB_OK;
+}
+
+int
 ebpfsnitch_daemon::nfq_handler(
     struct nfq_q_handle *const p_qh,
     struct nfgenmsg *const     p_nfmsg,
@@ -451,7 +486,7 @@ ebpfsnitch_daemon::nfq_handler(
     }
 
     if ((nfq_get_skbinfo(p_nfa) & NFQA_SKB_GSO) != 0){
-        m_log->error("NFQA_SKB_GSO {}", nfq_event_to_string(l_nfq_event));
+        // m_log->error("NFQA_SKB_GSO {}", nfq_event_to_string(l_nfq_event));
     }
 
     if (nfq_get_uid(p_nfa, &l_nfq_event.m_user_id) == 0) {

@@ -48,6 +48,7 @@ add_executable(
     rule_engine.cpp
     misc.cpp
     bpf_wrapper.cpp
+    nfq_wrapper.cpp
 )
 
 target_compile_definitions(ebpfsnitch PRIVATE SPDLOG_FMT_EXTERNAL)
@@ -67,5 +68,6 @@ target_link_libraries(
         spdlog
         fmt
         nfnetlink
+        mnl
         ${Boost_LIBRARIES}
 )

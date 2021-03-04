@@ -17,6 +17,7 @@
 #include "misc.hpp"
 #include "rule_engine.hpp"
 #include "bpf_wrapper.hpp"
+#include "nfq_wrapper.hpp"
 
 extern std::condition_variable g_shutdown;
 
@@ -65,6 +66,9 @@ private:
         void *const  p_data,
         const size_t p_data_size
     );
+
+    int
+    nfq_handler2(const struct nlmsghdr *const p_header);
 
     int
     nfq_handler(
