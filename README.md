@@ -38,7 +38,8 @@ C++:
 [spdlog](https://github.com/gabime/spdlog),
 [fmt](https://github.com/fmtlib/fmt),
 [nfnetlink](https://www.netfilter.org/projects/libnfnetlink/index.html),
-[boost](https://www.boost.org/)
+[boost](https://www.boost.org/),
+[libmnl](https://www.netfilter.org/projects/libmnl/index.html)
 
 Python: [PyQT5](https://pypi.org/project/PyQt5/)
 
@@ -56,7 +57,7 @@ On Arch which is the presently only tested system:
 From the eBPFSnitch repository directory:
 
 ```bash
-sudo pacman -S clang cmake bpf libnetfilter_queue spdlog git boost
+sudo pacman -S clang cmake bpf libnetfilter_queue spdlog git boost libmnl
 mkdir build
 cd build
 cmake ..
