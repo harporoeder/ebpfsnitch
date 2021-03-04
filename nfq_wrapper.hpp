@@ -22,7 +22,7 @@ public:
 
     void step();
 
-    void send_verdict(const uint32_t p_id, const bool p_allow);
+    void send_verdict(const uint32_t p_id, const uint32_t p_verdict);
 
 private:
     std::vector<char> m_buffer;

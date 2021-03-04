@@ -109,56 +109,11 @@ m_bpf_wrapper(p_log, "./CMakeFiles/probes.dir/probes.c.o")
     if (m_ring_buffer == NULL) {
         throw std::runtime_error("ring_buffer__new() failed");
     }
-    
-    m_nfq_handle = nfq_open();
 
-    if (m_nfq_handle == NULL) {
-        throw std::runtime_error("nfq_open() failed");
-    }
-
-    if (nfq_unbind_pf(m_nfq_handle, AF_INET) < 0) {
-        throw std::runtime_error("nfq_unbind_pf() failed");
-    }
-
-    if (nfq_bind_pf(m_nfq_handle, AF_INET) < 0) {
-        throw std::runtime_error("nfq_bind_pf() failed");
-    }
-
-    m_nfq_queue = nfq_create_queue(
-        m_nfq_handle,
+    m_nfq = std::make_shared<nfq_wrapper>(
         0,
-        &ebpfsnitch_daemon::nfq_handler_indirect,
-        (void *)this
+        std::bind(&ebpfsnitch_daemon::nfq_handler2, this, std::placeholders::_1)
     );
-
-    if (m_nfq_queue == NULL) {
-        throw std::runtime_error("nfq_create_queue() failed");
-    }
-
-    const uint32_t l_queue_flags =
-        NFQA_CFG_F_UID_GID |
-        NFQA_CFG_F_GSO     |
-        NFQA_CFG_F_CONNTRACK;
-
-    const int l_flag_status = nfq_set_queue_flags(
-        m_nfq_queue,
-        l_queue_flags,
-        l_queue_flags
-    );
-
-    if (l_flag_status != 0) {
-        throw std::runtime_error("nfq_set_queue_flags() failed");
-    }
-
-    if (nfq_set_mode(m_nfq_queue, NFQNL_COPY_PACKET, 0xffff) < 0) {
-        throw std::runtime_error("nfq_set_mode() failed");
-    }
-
-    m_nfq_fd = nfq_fd(m_nfq_handle);
-
-    if (m_nfq_fd <= 0) {
-        throw std::runtime_error("nfq_fd() failed");
-    }
 
     m_iptables_raii = std::make_shared<iptables_raii>(p_log);
 
@@ -176,9 +131,6 @@ ebpfsnitch_daemon::~ebpfsnitch_daemon()
     m_control_thread.join();
     m_filter_thread.join();
     m_probe_thread.join();
-
-    nfq_destroy_queue(m_nfq_queue);
-    nfq_close(m_nfq_handle);
 }
 
 void
@@ -189,14 +141,14 @@ ebpfsnitch_daemon::filter_thread()
     char l_buffer[1024 * 64] __attribute__ ((aligned));
 
     struct pollfd l_poll_fd;
-    l_poll_fd.fd     = m_nfq_fd;
+    l_poll_fd.fd     = m_nfq->get_fd();
     l_poll_fd.events = POLLIN;
 
     while (true) {
         if (m_shutdown.load()) {
             break;
         }
-        
+
         int l_ret = poll(&l_poll_fd, 1, 1000);
 
         if (l_ret < 0) {
@@ -207,21 +159,7 @@ ebpfsnitch_daemon::filter_thread()
             continue;
         }
 
-        l_ret = recv(m_nfq_fd, l_buffer, sizeof(l_buffer), 0);
-
-        if (l_ret <= 0) {
-            if (errno == ENOBUFS) {
-                m_log->warn("nfq too slow ENOBUFS");
-
-                continue;
-            } else {
-                m_log->error("recv() error {}", strerror(errno));
-
-                break;
-            }
-        }
-
-        nfq_handle_packet(m_nfq_handle, l_buffer, l_ret);
+        m_nfq->step();
     }
 
     m_log->trace("ebpfsnitch_daemon::filter_thread() exit");
@@ -427,10 +365,39 @@ ebpfsnitch_daemon::nfq_handler2(const struct nlmsghdr *const p_header)
     const uint16_t l_payload_length =
         mnl_attr_get_payload_len(l_attributes[NFQA_PAYLOAD]);
 
-    const char *l_payload = (char *)
+    const char *l_data = (char *)
         mnl_attr_get_payload(l_attributes[NFQA_PAYLOAD]);
 
     const uint32_t l_packet_id = ntohl(l_packet_header->packet_id);
+
+    if (l_payload_length < 24) {
+        m_log->error("unknown dropping malformed");
+
+        set_verdict(l_packet_id, NF_DROP);
+
+        return MNL_CB_OK;
+    }
+
+    const ip_protocol_t l_proto =
+        static_cast<ip_protocol_t>(*((uint8_t*) (l_data + 9)));
+
+    struct nfq_event_t l_nfq_event;
+
+    l_nfq_event.m_nfq_id              = l_packet_id;
+    l_nfq_event.m_protocol            = l_proto;
+    l_nfq_event.m_source_address      = *((uint32_t*) (l_data + 12));
+    l_nfq_event.m_destination_address = *((uint32_t*) (l_data + 16));
+    l_nfq_event.m_timestamp           = nanoseconds();
+    
+    if (l_proto == ip_protocol_t::TCP || l_proto == ip_protocol_t::UDP) {
+        l_nfq_event.m_source_port      = ntohs(*((uint16_t*) (l_data + 20)));
+        l_nfq_event.m_destination_port = ntohs(*((uint16_t*) (l_data + 22)));
+    } else {
+        l_nfq_event.m_source_port      = 0;
+        l_nfq_event.m_destination_port = 0;
+    }
+
+    process_nfq_event(l_nfq_event, true);
 
     return MNL_CB_OK;
 }
@@ -981,17 +948,7 @@ ebpfsnitch_daemon::set_verdict(const uint32_t p_id, const uint32_t p_verdict)
 {
     std::lock_guard<std::mutex> l_guard(m_response_lock);
 
-    const int l_status = nfq_set_verdict(
-        m_nfq_queue,
-        p_id,
-        p_verdict,
-        0,
-        NULL
-    );
-
-    if (l_status < 0) {
-        throw std::runtime_error("nfq_set_verdict failed");
-    }
+    m_nfq->send_verdict(p_id, p_verdict);
 }
 
 std::optional<process_info_t>

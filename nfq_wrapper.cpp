@@ -1,4 +1,5 @@
 #include <stdexcept>
+#include <iostream>
 
 #include <string.h>
 #include <arpa/inet.h>
@@ -74,6 +75,8 @@ int nfq_wrapper::queue_cb_proxy(
 
     assert(l_self != NULL);
 
+    l_self->m_cb(p_header);
+
     return 0;
 }
 
@@ -111,7 +114,7 @@ nfq_wrapper::step()
 }
 
 void
-nfq_wrapper::send_verdict(const uint32_t p_id, const bool p_allow)
+nfq_wrapper::send_verdict(const uint32_t p_id, const uint32_t p_verdict)
 {
     char l_buffer[MNL_SOCKET_BUFFER_SIZE];
 
@@ -121,11 +124,7 @@ nfq_wrapper::send_verdict(const uint32_t p_id, const bool p_allow)
         throw std::runtime_error("nfq_nlmsg_put() failed");
     }
 
-    if (p_allow) {
-        nfq_nlmsg_verdict_put(l_header, p_id, NF_ACCEPT);
-    } else {
-        nfq_nlmsg_verdict_put(l_header, p_id, NF_DROP);
-    }
+    nfq_nlmsg_verdict_put(l_header, p_id, p_verdict);
 
     if (mnl_socket_sendto(m_socket, l_header, l_header->nlmsg_len) < 0) {
         throw std::runtime_error("mnl_socket_sendto() failed");

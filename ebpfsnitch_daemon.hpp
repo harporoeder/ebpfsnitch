@@ -107,6 +107,8 @@ private:
     struct nfq_q_handle *m_nfq_queue;
     int m_nfq_fd;
 
+    std::shared_ptr<nfq_wrapper> m_nfq;
+
     bool
     process_associated_event(
         const struct nfq_event_t       &l_nfq_event,
