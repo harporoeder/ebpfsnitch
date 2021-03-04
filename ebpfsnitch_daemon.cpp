@@ -5,7 +5,6 @@
 #include <signal.h>
 #include <unistd.h>
 #include <netinet/in.h>
-#include <linux/netfilter.h>
 #include <thread>
 #include <arpa/inet.h>
 #include <unordered_map>
@@ -22,8 +21,6 @@
 #include <fcntl.h> 
 #include <string.h>
 #include <grp.h>
-
-#include <libnetfilter_queue/libnetfilter_queue.h>
 
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>

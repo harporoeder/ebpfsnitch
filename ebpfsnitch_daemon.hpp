@@ -8,10 +8,6 @@
 #include <memory>
 #include <condition_variable>
 
-#include <bpf/libbpf.h>
-
-#include <libnetfilter_queue/libnetfilter_queue.h>
-#include <libnfnetlink/libnfnetlink.h>
 #include <spdlog/spdlog.h>
 
 #include "misc.hpp"
