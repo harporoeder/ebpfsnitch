@@ -68,23 +68,7 @@ private:
     );
 
     int
-    nfq_handler2(const struct nlmsghdr *const p_header);
-
-    int
-    nfq_handler(
-        struct nfq_q_handle *const p_qh,
-        struct nfgenmsg *const     p_nfmsg,
-        struct nfq_data *const     p_nfa
-    );
-
-    // static wrapper -> nfq_handler
-    static int
-    nfq_handler_indirect(
-        struct nfq_q_handle *const p_qh,
-        struct nfgenmsg *const     p_nfmsg,
-        struct nfq_data *const     p_nfa,
-        void *const                p_data
-    );
+    nfq_handler(const struct nlmsghdr *const p_header);
 
     bool
     process_nfq_event(
@@ -103,11 +87,7 @@ private:
     struct ring_buffer *m_ring_buffer;
 
     std::shared_ptr<spdlog::logger> m_log;
-    struct nfq_handle *m_nfq_handle;
-    struct nfq_q_handle *m_nfq_queue;
-    int m_nfq_fd;
-
-    std::shared_ptr<nfq_wrapper> m_nfq;
+    std::shared_ptr<nfq_wrapper>    m_nfq;
 
     bool
     process_associated_event(

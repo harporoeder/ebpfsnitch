@@ -112,7 +112,7 @@ m_bpf_wrapper(p_log, "./CMakeFiles/probes.dir/probes.c.o")
 
     m_nfq = std::make_shared<nfq_wrapper>(
         0,
-        std::bind(&ebpfsnitch_daemon::nfq_handler2, this, std::placeholders::_1)
+        std::bind(&ebpfsnitch_daemon::nfq_handler, this, std::placeholders::_1)
     );
 
     m_iptables_raii = std::make_shared<iptables_raii>(p_log);
@@ -339,7 +339,7 @@ ebpfsnitch_daemon::process_nfq_event(
 }
 
 int
-ebpfsnitch_daemon::nfq_handler2(const struct nlmsghdr *const p_header)
+ebpfsnitch_daemon::nfq_handler(const struct nlmsghdr *const p_header)
 {
     struct nlattr *l_attributes[NFQA_MAX + 1] = {};
     
@@ -397,77 +397,7 @@ ebpfsnitch_daemon::nfq_handler2(const struct nlmsghdr *const p_header)
         l_nfq_event.m_destination_port = 0;
     }
 
-    process_nfq_event(l_nfq_event, true);
-
-    return MNL_CB_OK;
-}
-
-int
-ebpfsnitch_daemon::nfq_handler(
-    struct nfq_q_handle *const p_qh,
-    struct nfgenmsg *const     p_nfmsg,
-    struct nfq_data *const     p_nfa
-){
-    struct nfqnl_msg_packet_hdr *l_header = nfq_get_msg_packet_hdr(p_nfa);	
-
-    struct nfq_event_t l_nfq_event;
-    l_nfq_event.m_nfq_id = ntohl(l_header->packet_id);
-    l_nfq_event.m_user_id = 1337;
-    l_nfq_event.m_group_id = 1337;
-
-    unsigned char *l_data = NULL;
-    const int l_ret = nfq_get_payload(p_nfa, &l_data);
-
-    if (l_ret < 24) {
-        m_log->error("unknown dropping malformed");
-        set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
-        return 0;
-    }
-
-    const ip_protocol_t l_proto =
-        static_cast<ip_protocol_t>(*((uint8_t*) (l_data + 9)));
-
     /*
-    if (l_proto != ip_protocol_t::TCP && l_proto != ip_protocol_t::UDP) {
-        m_log->error(
-            "unknown allowing unhandled protocol {} {}",
-            ip_protocol_to_string(l_proto),
-            l_nfq_event.m_protocol
-        );
-        set_verdict(l_nfq_event.m_nfq_id, NF_ACCEPT);
-        return 0;
-    }
-    */
-
-    l_nfq_event.m_protocol            = l_proto;
-    l_nfq_event.m_source_address      = *((uint32_t*) (l_data + 12));
-    l_nfq_event.m_destination_address = *((uint32_t*) (l_data + 16));
-    l_nfq_event.m_timestamp           = nanoseconds();
-    
-    if (l_proto == ip_protocol_t::TCP || l_proto == ip_protocol_t::UDP) {
-        l_nfq_event.m_source_port      = ntohs(*((uint16_t*) (l_data + 20)));
-        l_nfq_event.m_destination_port = ntohs(*((uint16_t*) (l_data + 22)));
-    } else {
-        l_nfq_event.m_source_port      = 0;
-        l_nfq_event.m_destination_port = 0;
-    }
-
-    if ((nfq_get_skbinfo(p_nfa) & NFQA_SKB_GSO) != 0){
-        // m_log->error("NFQA_SKB_GSO {}", nfq_event_to_string(l_nfq_event));
-    }
-
-    if (nfq_get_uid(p_nfa, &l_nfq_event.m_user_id) == 0) {
-        // m_log->error("unknown nfq uid {}", nfq_event_to_string(l_nfq_event));
-        // set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
-        // return 0;
-    }
-
-    if (nfq_get_gid(p_nfa,& l_nfq_event.m_group_id) == 0) {
-        // m_log->error("unknown nfq gid");
-        // set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
-        // return 0;
-    }
-
     const nf_hook_t p_hook =
         static_cast<nf_hook_t>(l_header->hook);
 
@@ -484,43 +414,11 @@ ebpfsnitch_daemon::nfq_handler(
     nfq_get_outdev_name(l_nlif, p_nfa, l_outdev);
 
     nlif_close(l_nlif);
-
-    /*
-    m_log->info(
-        "nfq event "
-        "userId {} groupId {} protocol {} sourceAddress {} sourcePort {}"
-        " destinationAddress {} destinationPort {} hook {} indev {} outdev {}",
-        l_nfq_event.m_user_id,
-        l_nfq_event.m_group_id,
-        ip_protocol_to_string(p_proto),
-        ipv4_to_string(l_nfq_event.m_source_address),
-        l_nfq_event.m_source_port,
-        ipv4_to_string(l_nfq_event.m_destination_address),
-        l_nfq_event.m_destination_port,
-        nf_hook_to_string(p_hook),
-        l_indev,
-        l_outdev
-    );
     */
 
     process_nfq_event(l_nfq_event, true);
 
-    return 0;
-}
-
-int
-ebpfsnitch_daemon::nfq_handler_indirect(
-    struct nfq_q_handle *const p_qh,
-    struct nfgenmsg *const     p_nfmsg,
-    struct nfq_data *const     p_nfa,
-    void *const                p_data
-){
-    assert(p_data);
-
-    class ebpfsnitch_daemon *const l_self =
-        (class ebpfsnitch_daemon *const)p_data;
-
-    return l_self->nfq_handler(p_qh, p_nfmsg, p_nfa);
+    return MNL_CB_OK;
 }
 
 std::optional<struct connection_info_t>
