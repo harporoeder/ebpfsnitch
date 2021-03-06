@@ -469,6 +469,42 @@ ebpfsnitch_daemon::nfq_handler(const struct nlmsghdr *const p_header)
     return MNL_CB_OK;
 }
 
+static std::string
+dns_decode_qname(const char *const qname){
+    std::string buffer;
+
+    for (uint8_t i = 0; qname[i] != '\0';) {
+        const uint8_t count = qname[i];
+        i++;
+        buffer += std::string(qname + i, count);
+        buffer += ".";
+        i += count;
+    }
+
+    return buffer;
+}
+
+const char *
+dns_validate_qname(const char *const buffer)
+{
+    const char *iter = buffer;
+
+    while (true) {
+        const uint8_t byte = *iter; iter++;
+
+        if (byte == 0) {
+            return iter;
+        } else if (byte > 63) {
+            std::cout << "got compression" << std::endl;
+            return NULL;
+        }
+
+        iter += byte;
+    }
+
+    return iter;
+}
+
 int
 ebpfsnitch_daemon::nfq_handler_incoming(const struct nlmsghdr *const p_header)
 {
@@ -528,14 +564,63 @@ ebpfsnitch_daemon::nfq_handler_incoming(const struct nlmsghdr *const p_header)
         l_nfq_event.m_destination_port = 0;
     }
 
-    m_log->info(
-        "incoming packet {} source {}:{}, destination {}:{}",
-        ip_protocol_to_string(l_proto),
-        ipv4_to_string(l_nfq_event.m_source_address),
-        l_nfq_event.m_source_port,
-        ipv4_to_string(l_nfq_event.m_destination_address),
-        l_nfq_event.m_destination_port
-    );
+    if ( l_proto == ip_protocol_t::UDP) {
+        m_log->info(
+            "incoming packet {} source {}:{}, destination {}:{}",
+            ip_protocol_to_string(l_proto),
+            ipv4_to_string(l_nfq_event.m_source_address),
+            l_nfq_event.m_source_port,
+            ipv4_to_string(l_nfq_event.m_destination_address),
+            l_nfq_event.m_destination_port
+        );
+    }
+
+    if (l_nfq_event.m_source_port == 53) {
+        const char *const l_dns_start = l_data + 28;
+        const char *l_iter            = l_dns_start + 12;
+        const uint16_t l_packet_len   = ntohs(*((uint16_t*) (l_data + 24)));
+
+        const uint16_t l_questions  = ntohs(*((uint16_t*) (l_dns_start + 4)));
+        const uint16_t l_answers    = ntohs(*((uint16_t*) (l_dns_start + 6)));
+        const uint16_t l_authority  = ntohs(*((uint16_t*) (l_dns_start + 8)));
+        const uint16_t l_additional = ntohs(*((uint16_t*) (l_dns_start + 10)));
+
+        const std::string l_qname = dns_decode_qname(l_iter);
+        l_iter = dns_validate_qname(l_iter);
+        l_iter += 4;
+
+        const char *const l_a = l_iter;
+        l_iter = dns_validate_qname(l_iter);
+
+        std::string l_aname = "compressed";
+
+        if (l_iter == NULL) {
+            std::cout << "q failed" << std::endl;
+            l_iter = l_a + 2;
+        } else {
+            std::cout << "q not failed" << std::endl;
+            l_aname = dns_decode_qname(l_iter);
+        }
+        std::cout << "after" << std::endl;
+        l_iter += 10;
+        uint32_t l_addr = *((uint32_t*) (l_iter));
+
+        m_log->info(
+            "got DNS len {} questions {} answers {} authority {} additional {} qname {} aname {} addr {}",
+            l_packet_len,
+            l_questions,
+            l_answers,
+            l_authority,
+            l_additional,
+            l_qname,
+            l_aname,
+            ipv4_to_string(l_addr)
+        );
+
+        if (l_answers > 0) {
+            
+        }
+    }
 
     m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
 
