@@ -67,8 +67,9 @@ main(const int p_argc, const char** p_argv)
             l_description("eBPFSnitch Allowed options");
 
         l_description.add_options()
-            ( "help,h",    "produce help message" )
-            ( "version,v", "print version"        );
+            ( "help,h",       "produce help message"  )
+            ( "version,v",    "print version"         )
+            ( "remove-rules", "remove iptables rules" );
 
         boost::program_options::variables_map l_map;
 
@@ -91,6 +92,12 @@ main(const int p_argc, const char** p_argv)
 
         if (l_map.count("version")) {
             std::cout << "0.1.0" << std::endl;
+
+            return 0;
+        }
+
+        if (l_map.count("remove-rules")) {
+            iptables_raii::remove_rules();
 
             return 0;
         }

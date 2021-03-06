@@ -47,6 +47,12 @@ iptables_raii::~iptables_raii()
 {
     m_log->trace("removing iptables rules");
 
+    remove_rules();
+}
+
+void
+iptables_raii::remove_rules()
+{
     std::system("iptables --delete OUTPUT --jump NFQUEUE --queue-num 0");
 
     std::system("iptables --delete INPUT --jump NFQUEUE --queue-num 1");
@@ -566,7 +572,13 @@ ebpfsnitch_daemon::process_dns(
     const uint16_t l_authority  = dns_get_authority_count(l_dns_start);
     const uint16_t l_additional = dns_get_additional_count(l_dns_start);
     
-    m_log->info("{} {} {} {}", l_questions, l_answers, l_authority, l_additional);
+    m_log->info(
+        "{} {} {} {}",
+        l_questions,
+        l_answers,
+        l_authority,
+        l_additional
+    );
 
     if (l_questions != 1) {
         m_log->warn("dns got {} questions, ignoring", l_questions);

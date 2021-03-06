@@ -25,6 +25,8 @@ public:
 
     ~iptables_raii();
 
+    static void remove_rules();
+
 private:
     std::shared_ptr<spdlog::logger> m_log;
 };
