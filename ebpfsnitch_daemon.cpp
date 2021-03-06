@@ -25,6 +25,7 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
+#include "dns_parser.hpp"
 #include "ebpfsnitch_daemon.hpp"
 
 iptables_raii::iptables_raii(std::shared_ptr<spdlog::logger> p_log):
@@ -469,21 +470,6 @@ ebpfsnitch_daemon::nfq_handler(const struct nlmsghdr *const p_header)
     return MNL_CB_OK;
 }
 
-static std::string
-dns_decode_qname(const char *const qname){
-    std::string buffer;
-
-    for (uint8_t i = 0; qname[i] != '\0';) {
-        const uint8_t count = qname[i];
-        i++;
-        buffer += std::string(qname + i, count);
-        buffer += ".";
-        i += count;
-    }
-
-    return buffer;
-}
-
 const char *
 dns_validate_qname(const char *const buffer)
 {
@@ -566,60 +552,106 @@ ebpfsnitch_daemon::nfq_handler_incoming(const struct nlmsghdr *const p_header)
 
     if ( l_proto == ip_protocol_t::UDP) {
         m_log->info(
-            "incoming packet {} source {}:{}, destination {}:{}",
+            "incoming packet {} source {}:{}, destination {}:{} len {}",
             ip_protocol_to_string(l_proto),
             ipv4_to_string(l_nfq_event.m_source_address),
             l_nfq_event.m_source_port,
             ipv4_to_string(l_nfq_event.m_destination_address),
-            l_nfq_event.m_destination_port
+            l_nfq_event.m_destination_port,
+            l_payload_length
         );
     }
 
     if (l_nfq_event.m_source_port == 53) {
         const char *const l_dns_start = l_data + 28;
-        const char *l_iter            = l_dns_start + 12;
-        const uint16_t l_packet_len   = ntohs(*((uint16_t*) (l_data + 24)));
+        const char *const l_dns_end   = l_data + l_payload_length;
 
-        const uint16_t l_questions  = ntohs(*((uint16_t*) (l_dns_start + 4)));
-        const uint16_t l_answers    = ntohs(*((uint16_t*) (l_dns_start + 6)));
-        const uint16_t l_authority  = ntohs(*((uint16_t*) (l_dns_start + 8)));
-        const uint16_t l_additional = ntohs(*((uint16_t*) (l_dns_start + 10)));
+        if (l_dns_start + 12 > l_dns_end) {
+            m_log->warn("dns less than header size");
 
-        const std::string l_qname = dns_decode_qname(l_iter);
-        l_iter = dns_validate_qname(l_iter);
-        l_iter += 4;
+            m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
 
-        const char *const l_a = l_iter;
-        l_iter = dns_validate_qname(l_iter);
+            return MNL_CB_OK;
+        }
 
-        std::string l_aname = "compressed";
+        const uint16_t l_questions  = dns_get_question_count(l_dns_start);
+        const uint16_t l_answers    = dns_get_answer_count(l_dns_start);
+        const uint16_t l_authority  = dns_get_authority_count(l_dns_start);
+        const uint16_t l_additional = dns_get_additional_count(l_dns_start);
+        
+        m_log->info("{} {} {} {}", l_questions, l_answers, l_authority, l_additional);
+
+        if (l_questions != 1) {
+            m_log->warn("dns got {} questions, ignoring", l_questions);
+
+            m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
+
+            return MNL_CB_OK;
+        }
+
+        if (l_answers != 1) {
+            m_log->warn("dns got {} answers, ignoring", l_answers);
+
+            m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
+
+            return MNL_CB_OK;
+        }
+
+        const char *l_iter = dns_get_body(l_dns_start);
+
+        struct dns_question_t l_question;
+
+        l_iter = dns_get_question(l_iter, &l_question, l_dns_end);
 
         if (l_iter == NULL) {
-            std::cout << "q failed" << std::endl;
-            l_iter = l_a + 2;
-        } else {
-            std::cout << "q not failed" << std::endl;
-            l_aname = dns_decode_qname(l_iter);
+            m_log->warn("failed to get question");
+
+            m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
+
+            return MNL_CB_OK;
         }
-        std::cout << "after" << std::endl;
-        l_iter += 10;
-        uint32_t l_addr = *((uint32_t*) (l_iter));
+
+        std::cout << "r position " << l_dns_end - l_iter << std::endl;
+
+        struct dns_resource_record_t l_resource;
+
+        l_iter = dns_get_record(l_iter, &l_resource, l_dns_end);
+
+        if (l_iter == NULL) {
+            m_log->warn("failed to get resource record");
+
+            m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
+
+            return MNL_CB_OK;
+        }
+
+        if (l_resource.m_type != 1) {
+            m_log->warn("not A record, ignoring");
+
+            m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
+
+            return MNL_CB_OK;
+        }
+
+        if (l_resource.m_data_length != 4) {
+            m_log->warn("record length expected 4 bytes");
+
+            m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
+
+            return MNL_CB_OK;
+        }
 
         m_log->info(
-            "got DNS len {} questions {} answers {} authority {} additional {} qname {} aname {} addr {}",
-            l_packet_len,
+            "got DNS questions {} answers {} authority {} additional {} "
+            "qname {} aname {} addr {}",
             l_questions,
             l_answers,
             l_authority,
             l_additional,
-            l_qname,
-            l_aname,
-            ipv4_to_string(l_addr)
+            dns_decode_qname(l_question.m_name),
+            dns_decode_qname(l_resource.m_name),
+            ipv4_to_string(*((uint32_t *)l_resource.m_data))
         );
-
-        if (l_answers > 0) {
-            
-        }
     }
 
     m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
