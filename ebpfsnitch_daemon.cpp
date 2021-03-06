@@ -34,6 +34,8 @@ iptables_raii::iptables_raii(std::shared_ptr<spdlog::logger> p_log):
 
     std::system("iptables --append OUTPUT --jump NFQUEUE --queue-num 0");
 
+    std::system("iptables --append INPUT --jump NFQUEUE --queue-num 1");
+
     std::system(
         "iptables --insert DOCKER-USER --in-interface docker0 ! "
         "--out-interface docker0 --jump NFQUEUE --queue-num 0"
@@ -45,6 +47,8 @@ iptables_raii::~iptables_raii()
     m_log->trace("removing iptables rules");
 
     std::system("iptables --delete OUTPUT --jump NFQUEUE --queue-num 0");
+
+    std::system("iptables --delete INPUT --jump NFQUEUE --queue-num 1");
 
     std::system(
         "iptables --delete DOCKER-USER --in-interface docker0 ! "
@@ -109,12 +113,26 @@ m_bpf_wrapper(p_log, "./CMakeFiles/probes.dir/probes.c.o")
 
     m_nfq = std::make_shared<nfq_wrapper>(
         0,
-        std::bind(&ebpfsnitch_daemon::nfq_handler, this, std::placeholders::_1)
+        std::bind(
+            &ebpfsnitch_daemon::nfq_handler,
+            this,
+            std::placeholders::_1
+        )
+    );
+
+    m_nfq_incoming = std::make_shared<nfq_wrapper>(
+        1,
+        std::bind(
+            &ebpfsnitch_daemon::nfq_handler_incoming,
+            this,
+            std::placeholders::_1
+        )
     );
 
     m_iptables_raii = std::make_shared<iptables_raii>(p_log);
 
     m_filter_thread   = std::thread( &ebpfsnitch_daemon::filter_thread,   this );
+    m_filter_thread2  = std::thread( &ebpfsnitch_daemon::filter_thread2,  this );
     m_probe_thread   = std::thread( &ebpfsnitch_daemon::probe_thread,   this );
     m_control_thread = std::thread( &ebpfsnitch_daemon::control_thread, this );
 }
@@ -127,6 +145,7 @@ ebpfsnitch_daemon::~ebpfsnitch_daemon()
     m_shutdown.store(true);
     m_control_thread.join();
     m_filter_thread.join();
+    m_filter_thread2.join();
     m_probe_thread.join();
 }
 
@@ -160,6 +179,38 @@ ebpfsnitch_daemon::filter_thread()
     }
 
     m_log->trace("ebpfsnitch_daemon::filter_thread() exit");
+}
+
+void
+ebpfsnitch_daemon::filter_thread2()
+{
+    m_log->trace("ebpfsnitch_daemon::filter_thread2() entry");
+
+    char l_buffer[1024 * 64] __attribute__ ((aligned));
+
+    struct pollfd l_poll_fd;
+    l_poll_fd.fd     = m_nfq_incoming->get_fd();
+    l_poll_fd.events = POLLIN;
+
+    while (true) {
+        if (m_shutdown.load()) {
+            break;
+        }
+
+        int l_ret = poll(&l_poll_fd, 1, 1000);
+
+        if (l_ret < 0) {
+            m_log->error("poll() error {}", strerror(errno));
+
+            break;
+        } else if (l_ret == 0) {
+            continue;
+        }
+
+        m_nfq_incoming->step();
+    }
+
+    m_log->trace("ebpfsnitch_daemon::filter_thread2() exit");
 }
 
 void
@@ -352,17 +403,17 @@ ebpfsnitch_daemon::nfq_handler(const struct nlmsghdr *const p_header)
         return MNL_CB_ERROR;
     }
 
-    struct nfgenmsg *l_nfgen_message = (struct nfgenmsg *)
+    struct nfgenmsg *const l_nfgen_message = (struct nfgenmsg *)
         mnl_nlmsg_get_payload(p_header);
 
-    struct nfqnl_msg_packet_hdr *l_packet_header =
+    struct nfqnl_msg_packet_hdr *const l_packet_header =
         (struct nfqnl_msg_packet_hdr *)
         mnl_attr_get_payload(l_attributes[NFQA_PACKET_HDR]);
 
     const uint16_t l_payload_length =
         mnl_attr_get_payload_len(l_attributes[NFQA_PAYLOAD]);
 
-    const char *l_data = (char *)
+    const char *const l_data = (char *)
         mnl_attr_get_payload(l_attributes[NFQA_PAYLOAD]);
 
     const uint32_t l_packet_id = ntohl(l_packet_header->packet_id);
@@ -414,6 +465,79 @@ ebpfsnitch_daemon::nfq_handler(const struct nlmsghdr *const p_header)
     */
 
     process_nfq_event(l_nfq_event, true);
+
+    return MNL_CB_OK;
+}
+
+int
+ebpfsnitch_daemon::nfq_handler_incoming(const struct nlmsghdr *const p_header)
+{
+    struct nlattr *l_attributes[NFQA_MAX + 1] = {};
+    
+    if (nfq_nlmsg_parse(p_header, l_attributes) < 0) {
+        m_log->error("nfq_nlmsg_parse() failed");
+
+        return MNL_CB_ERROR;
+    }
+
+    if (l_attributes[NFQA_PACKET_HDR] == NULL) {
+        m_log->error("l_attributes[NFQA_PACKET_HDR] failed");
+
+        return MNL_CB_ERROR;
+    }
+
+    struct nfgenmsg *const l_nfgen_message = (struct nfgenmsg *)
+        mnl_nlmsg_get_payload(p_header);
+
+    struct nfqnl_msg_packet_hdr *const l_packet_header =
+        (struct nfqnl_msg_packet_hdr *)
+        mnl_attr_get_payload(l_attributes[NFQA_PACKET_HDR]);
+
+    const uint16_t l_payload_length =
+        mnl_attr_get_payload_len(l_attributes[NFQA_PAYLOAD]);
+
+    const char *const l_data = (char *)
+        mnl_attr_get_payload(l_attributes[NFQA_PAYLOAD]);
+
+    const uint32_t l_packet_id = ntohl(l_packet_header->packet_id);
+
+    if (l_payload_length < 24) {
+        m_log->error("unknown dropping malformed");
+
+        m_nfq_incoming->send_verdict(l_packet_id, NF_DROP);
+
+        return MNL_CB_OK;
+    }
+
+    const ip_protocol_t l_proto =
+        static_cast<ip_protocol_t>(*((uint8_t*) (l_data + 9)));
+
+    struct nfq_event_t l_nfq_event;
+
+    l_nfq_event.m_nfq_id              = l_packet_id;
+    l_nfq_event.m_protocol            = l_proto;
+    l_nfq_event.m_source_address      = *((uint32_t*) (l_data + 12));
+    l_nfq_event.m_destination_address = *((uint32_t*) (l_data + 16));
+    l_nfq_event.m_timestamp           = nanoseconds();
+    
+    if (l_proto == ip_protocol_t::TCP || l_proto == ip_protocol_t::UDP) {
+        l_nfq_event.m_source_port      = ntohs(*((uint16_t*) (l_data + 20)));
+        l_nfq_event.m_destination_port = ntohs(*((uint16_t*) (l_data + 22)));
+    } else {
+        l_nfq_event.m_source_port      = 0;
+        l_nfq_event.m_destination_port = 0;
+    }
+
+    m_log->info(
+        "incoming packet {} source {}:{}, destination {}:{}",
+        ip_protocol_to_string(l_proto),
+        ipv4_to_string(l_nfq_event.m_source_address),
+        l_nfq_event.m_source_port,
+        ipv4_to_string(l_nfq_event.m_destination_address),
+        l_nfq_event.m_destination_port
+    );
+
+    m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
 
     return MNL_CB_OK;
 }

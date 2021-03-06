@@ -41,6 +41,7 @@ private:
     rule_engine_t m_rule_engine;
 
     void filter_thread();
+    void filter_thread2();
     void probe_thread();
     void control_thread();
 
@@ -66,6 +67,9 @@ private:
     int
     nfq_handler(const struct nlmsghdr *const p_header);
 
+    int
+    nfq_handler_incoming(const struct nlmsghdr *const p_header);
+
     bool
     process_nfq_event(
         const struct nfq_event_t &l_nfq_event,
@@ -84,6 +88,7 @@ private:
 
     std::shared_ptr<spdlog::logger> m_log;
     std::shared_ptr<nfq_wrapper>    m_nfq;
+    std::shared_ptr<nfq_wrapper>    m_nfq_incoming;
 
     bool
     process_associated_event(
@@ -114,6 +119,7 @@ private:
     void set_verdict(const uint32_t p_id, const uint32_t p_verdict);
     
     std::thread m_filter_thread;
+    std::thread m_filter_thread2;
     std::thread m_probe_thread;
     std::thread m_control_thread;
 };
