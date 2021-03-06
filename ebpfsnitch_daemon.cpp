@@ -133,11 +133,11 @@ m_bpf_wrapper(p_log, "./CMakeFiles/probes.dir/probes.c.o")
     m_iptables_raii = std::make_shared<iptables_raii>(p_log);
 
     m_thread_group.push_back(
-        std::thread(&ebpfsnitch_daemon::filter_thread, this)
+        std::thread(&ebpfsnitch_daemon::filter_thread, this, m_nfq)
     );
 
     m_thread_group.push_back(
-        std::thread(&ebpfsnitch_daemon::filter_thread2, this)
+        std::thread(&ebpfsnitch_daemon::filter_thread, this, m_nfq_incoming)
     );
 
     m_thread_group.push_back(
@@ -161,14 +161,15 @@ ebpfsnitch_daemon::~ebpfsnitch_daemon()
 }
 
 void
-ebpfsnitch_daemon::filter_thread()
+ebpfsnitch_daemon::filter_thread(std::shared_ptr<nfq_wrapper> p_nfq)
 {
     m_log->trace("ebpfsnitch_daemon::filter_thread() entry");
 
     char l_buffer[1024 * 64] __attribute__ ((aligned));
 
     struct pollfd l_poll_fd;
-    l_poll_fd.fd     = m_nfq->get_fd();
+
+    l_poll_fd.fd     = p_nfq->get_fd();
     l_poll_fd.events = POLLIN;
 
     while (true) {
@@ -176,7 +177,7 @@ ebpfsnitch_daemon::filter_thread()
             break;
         }
 
-        int l_ret = poll(&l_poll_fd, 1, 1000);
+        const int l_ret = poll(&l_poll_fd, 1, 1000);
 
         if (l_ret < 0) {
             m_log->error("poll() error {}", strerror(errno));
@@ -186,42 +187,10 @@ ebpfsnitch_daemon::filter_thread()
             continue;
         }
 
-        m_nfq->step();
+        p_nfq->step();
     }
 
     m_log->trace("ebpfsnitch_daemon::filter_thread() exit");
-}
-
-void
-ebpfsnitch_daemon::filter_thread2()
-{
-    m_log->trace("ebpfsnitch_daemon::filter_thread2() entry");
-
-    char l_buffer[1024 * 64] __attribute__ ((aligned));
-
-    struct pollfd l_poll_fd;
-    l_poll_fd.fd     = m_nfq_incoming->get_fd();
-    l_poll_fd.events = POLLIN;
-
-    while (true) {
-        if (m_shutdown.load()) {
-            break;
-        }
-
-        int l_ret = poll(&l_poll_fd, 1, 1000);
-
-        if (l_ret < 0) {
-            m_log->error("poll() error {}", strerror(errno));
-
-            break;
-        } else if (l_ret == 0) {
-            continue;
-        }
-
-        m_nfq_incoming->step();
-    }
-
-    m_log->trace("ebpfsnitch_daemon::filter_thread2() exit");
 }
 
 void

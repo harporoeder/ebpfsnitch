@@ -40,8 +40,7 @@ public:
 private:
     rule_engine_t m_rule_engine;
 
-    void filter_thread();
-    void filter_thread2();
+    void filter_thread(std::shared_ptr<nfq_wrapper> p_nfq);
     void probe_thread();
     void control_thread();
 
