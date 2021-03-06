@@ -132,22 +132,32 @@ m_bpf_wrapper(p_log, "./CMakeFiles/probes.dir/probes.c.o")
 
     m_iptables_raii = std::make_shared<iptables_raii>(p_log);
 
-    m_filter_thread   = std::thread( &ebpfsnitch_daemon::filter_thread,   this );
-    m_filter_thread2  = std::thread( &ebpfsnitch_daemon::filter_thread2,  this );
-    m_probe_thread   = std::thread( &ebpfsnitch_daemon::probe_thread,   this );
-    m_control_thread = std::thread( &ebpfsnitch_daemon::control_thread, this );
+    m_thread_group.push_back(
+        std::thread(&ebpfsnitch_daemon::filter_thread, this)
+    );
+
+    m_thread_group.push_back(
+        std::thread(&ebpfsnitch_daemon::filter_thread2, this)
+    );
+
+    m_thread_group.push_back(
+        std::thread(&ebpfsnitch_daemon::probe_thread, this)
+    );
+
+    m_thread_group.push_back(
+        std::thread(&ebpfsnitch_daemon::control_thread, this)
+    );
 }
 
 ebpfsnitch_daemon::~ebpfsnitch_daemon()
 {
     m_log->trace("ebpfsnitch_daemon destructor");;
 
-    m_log->trace("joining threads");
     m_shutdown.store(true);
-    m_control_thread.join();
-    m_filter_thread.join();
-    m_filter_thread2.join();
-    m_probe_thread.join();
+
+    for (auto &l_thread : m_thread_group) {
+        l_thread.join();
+    }
 }
 
 void
@@ -589,7 +599,7 @@ ebpfsnitch_daemon::nfq_handler_incoming(const struct nlmsghdr *const p_header)
             return MNL_CB_OK;
         }
 
-        if (l_answers != 1) {
+        if (l_answers == 0) {
             m_log->warn("dns got {} answers, ignoring", l_answers);
 
             m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
@@ -611,36 +621,43 @@ ebpfsnitch_daemon::nfq_handler_incoming(const struct nlmsghdr *const p_header)
             return MNL_CB_OK;
         }
 
-        std::cout << "r position " << l_dns_end - l_iter << std::endl;
+        for (uint l_i = 0; l_i < l_answers; l_i++) {
+            struct dns_resource_record_t l_resource;
 
-        struct dns_resource_record_t l_resource;
+            l_iter = dns_get_record(l_iter, &l_resource, l_dns_end);
 
-        l_iter = dns_get_record(l_iter, &l_resource, l_dns_end);
+            if (l_iter == NULL) {
+                m_log->warn("failed to get resource record");
 
-        if (l_iter == NULL) {
-            m_log->warn("failed to get resource record");
+                m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
 
-            m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
+                return MNL_CB_OK;
+            }
 
-            return MNL_CB_OK;
+            if (l_resource.m_type != 1) {
+                m_log->warn("not A record, ignoring");
+
+                m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
+
+                return MNL_CB_OK;
+            }
+
+            if (l_resource.m_data_length != 4) {
+                m_log->warn("record length expected 4 bytes");
+
+                m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
+
+                return MNL_CB_OK;
+            }
+
+            m_log->info(
+                "Got A record for {} {}",
+                dns_decode_qname(l_question.m_name),
+                ipv4_to_string(*((uint32_t *)l_resource.m_data))
+            );
         }
 
-        if (l_resource.m_type != 1) {
-            m_log->warn("not A record, ignoring");
-
-            m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
-
-            return MNL_CB_OK;
-        }
-
-        if (l_resource.m_data_length != 4) {
-            m_log->warn("record length expected 4 bytes");
-
-            m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
-
-            return MNL_CB_OK;
-        }
-
+        /*
         m_log->info(
             "got DNS questions {} answers {} authority {} additional {} "
             "qname {} aname {} addr {}",
@@ -652,6 +669,7 @@ ebpfsnitch_daemon::nfq_handler_incoming(const struct nlmsghdr *const p_header)
             dns_decode_qname(l_resource.m_name),
             ipv4_to_string(*((uint32_t *)l_resource.m_data))
         );
+        */
     }
 
     m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);

@@ -117,9 +117,6 @@ private:
     std::shared_ptr<iptables_raii> m_iptables_raii;
 
     void set_verdict(const uint32_t p_id, const uint32_t p_verdict);
-    
-    std::thread m_filter_thread;
-    std::thread m_filter_thread2;
-    std::thread m_probe_thread;
-    std::thread m_control_thread;
+
+    std::vector<std::thread> m_thread_group;
 };

@@ -63,8 +63,6 @@ dns_decode_qname(const char *const p_qname)
         const uint8_t l_count = p_qname[l_i];
 
         if (l_count > 63) {
-            l_buffer += "compressed.";
-
             return l_buffer;
         }
 
@@ -84,8 +82,6 @@ dns_validate_qname(const char *const p_buffer, const char *const p_end)
     assert(p_end);
 
     if (p_buffer >= p_end) {
-        std::cout << "dns_validate_qname short" << std::endl;
-
         return NULL;
     }
 
@@ -99,8 +95,6 @@ dns_validate_qname(const char *const p_buffer, const char *const p_end)
         if (l_byte == 0) {
             return l_iter;
         } else if (l_byte > 63) {
-            std::cout << "dns_validate_qname compressed" << std::endl;
-
             return l_iter + 1;
         }
 
@@ -122,15 +116,9 @@ dns_get_question(
 
     p_question->m_name = p_iter;
 
-    std::cout << "1q position: " << p_end - p_iter << std::endl;
-
     p_iter = dns_validate_qname(p_iter, p_end);
 
-    std::cout << "2q position: " << p_end - p_iter << std::endl;
-
     if (p_iter == NULL || p_iter + 4 > p_end) {
-        std::cout << "dns_get_question short" << std::endl;
-
         return NULL;
     }
 
@@ -157,11 +145,7 @@ dns_get_record(
 
     p_iter = dns_validate_qname(p_iter, p_end);
 
-    std::cout << "f position: " << p_end - p_iter << std::endl;
-
     if (p_iter == NULL || (p_iter + 10) > p_end) {
-        std::cout << "dns_get_record short" << std::endl;
-
         return NULL;
     }
 
