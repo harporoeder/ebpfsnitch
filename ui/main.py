@@ -42,8 +42,12 @@ class PromptDialog(QDialog):
         allowButton.setAutoDefault(False)
         denyButton.setAutoDefault(False)
 
-        source      = question["sourceAddress"]      + ":" + str(question["sourcePort"])
-        destination = question["destinationAddress"] + ":" + str(question["destinationPort"])
+        source = question["sourceAddress"]      + ":" + str(question["sourcePort"])
+
+        destination = \
+            question["destinationAddress"] + ":" + \
+            str(question["destinationPort"]) + \
+            " (" + question["domain"] + ")"
 
         self.layout = QVBoxLayout()
         self.layout.addWidget(QLabel("Application: " + question["executable"]))

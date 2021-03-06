@@ -619,11 +619,16 @@ ebpfsnitch_daemon::nfq_handler_incoming(const struct nlmsghdr *const p_header)
                 return MNL_CB_OK;
             }
 
+            const uint32_t l_address = *((uint32_t *)l_resource.m_data);
+
             m_log->info(
                 "Got A record for {} {}",
                 dns_decode_qname(l_question.m_name),
-                ipv4_to_string(*((uint32_t *)l_resource.m_data))
+                ipv4_to_string(l_address)
             );
+
+            std::lock_guard<std::mutex> l_guard(m_reverse_dns_lock);
+            m_reverse_dns[l_address] = dns_decode_qname(l_question.m_name);
         }
 
         /*
@@ -951,6 +956,10 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
 
         const struct connection_info_t l_info = l_optional_info.value();
 
+        const std::string l_domain =
+            lookup_domain(l_nfq_event.m_destination_address)
+                .value_or("");
+
         const nlohmann::json l_json = {
             { "kind",               "query"                        },
             { "executable",         l_info.m_executable            },
@@ -964,7 +973,8 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
                 ipv4_to_string(l_nfq_event.m_destination_address)  },
             { "container",          l_info.m_container             },
             { "protocol",
-                ip_protocol_to_string(l_nfq_event.m_protocol)      }
+                ip_protocol_to_string(l_nfq_event.m_protocol)      },
+            { "domain",             l_domain                       }
         };
 
         const std::string l_json_serialized = l_json.dump() + "\n";
@@ -1124,4 +1134,18 @@ ebpfsnitch_daemon::lookup_process_info(const uint32_t p_process_id)
     } catch (...) {}
 
     return std::optional<struct process_info_t>(l_process_info);
+}
+
+std::optional<std::string>
+ebpfsnitch_daemon::lookup_domain(const uint32_t p_address)
+{
+    std::lock_guard<std::mutex> l_guard(m_reverse_dns_lock);
+
+    const auto l_iter = m_reverse_dns.find(p_address);
+
+    if (l_iter != m_reverse_dns.end()) {
+        return std::optional<std::string>(l_iter->second);
+    } else {
+        return std::nullopt;
+    }
 }

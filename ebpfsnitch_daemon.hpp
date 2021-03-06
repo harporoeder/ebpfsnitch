@@ -118,4 +118,8 @@ private:
     void set_verdict(const uint32_t p_id, const uint32_t p_verdict);
 
     std::vector<std::thread> m_thread_group;
+
+    std::mutex m_reverse_dns_lock;
+    std::unordered_map<uint32_t, std::string> m_reverse_dns;
+    std::optional<std::string> lookup_domain(const uint32_t p_address);
 };
