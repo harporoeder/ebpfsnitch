@@ -119,6 +119,12 @@ private:
 
     std::vector<std::thread> m_thread_group;
 
+    void
+    process_dns(
+        const char *const p_start,
+        const char *const p_end
+    );
+
     std::mutex m_reverse_dns_lock;
     std::unordered_map<uint32_t, std::string> m_reverse_dns;
     std::optional<std::string> lookup_domain(const uint32_t p_address);
