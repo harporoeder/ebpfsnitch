@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <vector>
 #include <functional>
+#include <memory>
 
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <libnfnetlink/libnfnetlink.h>
@@ -27,7 +28,10 @@ public:
 private:
     std::vector<char> m_buffer;
 
-    struct mnl_socket *m_socket;
+    const std::unique_ptr<struct mnl_socket, int(*)(struct mnl_socket *)>
+        m_socket;
+
+    const unsigned int m_queue_index;
 
     unsigned int m_port_id;
 
@@ -36,5 +40,5 @@ private:
         void *const                  p_context
     );
 
-    std::function<int(const struct nlmsghdr *)> m_cb;
+    const std::function<int(const struct nlmsghdr *)> m_cb;
 };
