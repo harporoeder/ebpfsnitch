@@ -700,7 +700,7 @@ ebpfsnitch_daemon::control_thread()
                 break;
             }
             
-            int l_ret = poll(&l_poll_fd, 1, 1000);
+            const int l_ret = poll(&l_poll_fd, 1, 1000);
 
             if (l_ret < 0) {
                 m_log->error("poll() unix socket error {}", l_ret);
@@ -710,7 +710,7 @@ ebpfsnitch_daemon::control_thread()
                 continue;
             }
 
-            int l_client_fd = accept(
+            const int l_client_fd = accept(
                 l_fd,
                 (struct sockaddr *)&l_addr,
                 (socklen_t*)&l_addr
@@ -827,7 +827,7 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
 
     line_reader l_reader(p_sock);
 
-    bool awaitingAction = false;
+    bool l_awaiting_action = false;
 
     {
         m_log->info("sending initial ruleset to ui");
@@ -841,8 +841,20 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
         writeAll(p_sock, l_json_serialized);
     }
 
+    struct pollfd l_poll_fd;
+    l_poll_fd.fd     = p_sock;
+    l_poll_fd.events = POLLIN;
+
     while (true) {
         if (m_shutdown.load()) {
+            break;
+        }
+
+        const int l_ret = poll(&l_poll_fd, 1, 50);
+
+        if (l_ret < 0) {
+            m_log->error("poll() unix socket error {}", l_ret);
+
             break;
         }
 
@@ -855,6 +867,7 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
 
             if (l_verdict["kind"] == "addRule") {
                 m_log->info("adding rule");
+
                 const std::string l_rule_id = m_rule_engine.add_rule(l_verdict);
 
                 {
@@ -866,13 +879,13 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
                     };
 
                     const std::string l_json_serialized = l_json.dump() + "\n";
-                    m_log->info("writing all");
+
                     writeAll(p_sock, l_json_serialized);
                 }
 
                 process_unhandled();
 
-                awaitingAction = false;
+                l_awaiting_action = false;
             } else if (l_verdict["kind"] == "removeRule") {
                 m_log->info("removing rule");
 
@@ -880,7 +893,7 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
             }
         }
 
-        if (awaitingAction) {
+        if (l_awaiting_action) {
             continue;
         }
 
@@ -937,7 +950,7 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
 
         writeAll(p_sock, l_json_serialized);
 
-        awaitingAction = true;
+        l_awaiting_action = true;
     }
 }
 
