@@ -32,15 +32,21 @@ class PromptDialog(QDialog):
         self.priority                   = QSpinBox()
 
         self.forAllSourcePorts.setChecked(True)
+
         self.priority.setRange(0, 2147483647)
         self.priority.setValue(50)
         self.priority.setSingleStep(1)
+        priorityLayout = QHBoxLayout()
+        priorityLayout.addWidget(QLabel("Priority:"))
+        priorityLayout.addWidget(self.priority)
 
         allowButton.clicked.connect(self.accept)
         denyButton.clicked.connect(self.reject)
-
         allowButton.setAutoDefault(False)
         denyButton.setAutoDefault(False)
+        buttonLayout = QHBoxLayout()
+        buttonLayout.addWidget(allowButton)
+        buttonLayout.addWidget(denyButton)
 
         source = question["sourceAddress"]      + ":" + str(question["sourcePort"])
 
@@ -62,9 +68,8 @@ class PromptDialog(QDialog):
         self.layout.addWidget(self.forAllSourcePorts)
         self.layout.addWidget(self.forAllProtocols)
         self.layout.addWidget(self.forAllUIDs)
-        self.layout.addWidget(self.priority)
-        self.layout.addWidget(allowButton)
-        self.layout.addWidget(denyButton)
+        self.layout.addLayout(priorityLayout)
+        self.layout.addLayout(buttonLayout)
         self.setLayout(self.layout)
 
 class MainWindow(QMainWindow):
