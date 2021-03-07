@@ -60,3 +60,18 @@ bpf_wrapper_object::attach_kprobe(
 
     m_links.push_back(l_link);
 }
+
+int
+bpf_wrapper_object::lookup_map_fd_by_name(const std::string &p_name)
+{
+    const int l_fd = bpf_object__find_map_fd_by_name(
+        m_object.get(),
+        p_name.c_str()
+    );
+
+    if (l_fd < 0) {
+        throw std::runtime_error("bpf_object__find_map_fd_by_name() failed");
+    }
+
+    return l_fd;
+}

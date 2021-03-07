@@ -98,17 +98,8 @@ m_bpf_wrapper(p_log, "./CMakeFiles/probes.dir/probes.c.o")
         true
     );
 
-    int l_buffer_map_fd = bpf_object__find_map_fd_by_name(
-        m_bpf_wrapper.m_object.get(),
-        "g_probe_ipv4_events"
-    );
-
-    if (l_buffer_map_fd < 0) {
-        throw std::runtime_error("bpf_object__find_map_fd_by_name() failed");
-    }
-
     m_ring_buffer = ring_buffer__new(
-        l_buffer_map_fd,
+        m_bpf_wrapper.lookup_map_fd_by_name("g_probe_ipv4_events"),
         &ebpfsnitch_daemon::bpf_reader_indirect,
         (void *)this,
         NULL

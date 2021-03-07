@@ -22,10 +22,13 @@ public:
         const bool         p_is_ret_probe
     );
 
+    int
+    lookup_map_fd_by_name(const std::string &p_name);
+
+private:
     const std::unique_ptr<struct bpf_object, void(*)(struct bpf_object *)>
         m_object;
 
-private:
     std::shared_ptr<spdlog::logger> m_log;
 
     std::vector<struct bpf_link *> m_links;
