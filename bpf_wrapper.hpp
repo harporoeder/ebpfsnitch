@@ -22,7 +22,8 @@ public:
         const bool         p_is_ret_probe
     );
 
-    struct bpf_object *m_object;
+    const std::unique_ptr<struct bpf_object, void(*)(struct bpf_object *)>
+        m_object;
 
 private:
     std::shared_ptr<spdlog::logger> m_log;

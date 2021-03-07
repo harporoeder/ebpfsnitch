@@ -6,15 +6,14 @@ bpf_wrapper_object::bpf_wrapper_object(
     std::shared_ptr<spdlog::logger> p_log,
     const std::string              &p_object_path
 ):
-m_log(p_log)
+    m_log(p_log),
+    m_object(bpf_object__open(p_object_path.c_str()), bpf_object__close)
 {
-    m_object = bpf_object__open(p_object_path.c_str());
-
     if (m_object == NULL) {
         throw std::runtime_error("bpf_object__open failed " + p_object_path);
     }
 
-    if (bpf_object__load(m_object) != 0) {
+    if (bpf_object__load(m_object.get()) != 0) {
         throw std::runtime_error("m_object__load() failed");
     }
 }
@@ -29,11 +28,9 @@ bpf_wrapper_object::~bpf_wrapper_object()
         }
     }
 
-    if (bpf_object__unload(m_object) != 0) {
+    if (bpf_object__unload(m_object.get()) != 0) {
         m_log->error("bpf_object__unload() failed");
     }
-
-    bpf_object__close(m_object);
 }
 
 void
@@ -43,7 +40,7 @@ bpf_wrapper_object::attach_kprobe(
     const bool         p_is_ret_probe
 ){
     struct bpf_program *const l_hook = bpf_object__find_program_by_name(
-        m_object,
+        m_object.get(),
         p_in_bfp_name.c_str()
     );
 

@@ -99,7 +99,7 @@ m_bpf_wrapper(p_log, "./CMakeFiles/probes.dir/probes.c.o")
     );
 
     int l_buffer_map_fd = bpf_object__find_map_fd_by_name(
-        m_bpf_wrapper.m_object,
+        m_bpf_wrapper.m_object.get(),
         "g_probe_ipv4_events"
     );
 
