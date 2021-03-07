@@ -2,9 +2,34 @@
 
 #include <string>
 #include <memory>
+#include <functional>
 
 #include <bpf/libbpf.h>
 #include <spdlog/spdlog.h>
+
+class bpf_wrapper_ring {
+public:
+    bpf_wrapper_ring(
+        const int                                          p_fd,
+        const std::function<void(void *const , const int)> p_cb
+    );
+
+    ~bpf_wrapper_ring();
+
+    void poll(const int p_timeout_ms);
+
+private:
+    struct ring_buffer *m_ring;
+
+    static int
+    cb_proxy(
+        void *const  p_cb_cookie,
+        void *const  p_data,
+        const size_t p_data_size
+    );
+
+    const std::function<void(void *const , const int)> m_cb;
+};
 
 class bpf_wrapper_object {
 public:

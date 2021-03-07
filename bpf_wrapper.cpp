@@ -2,6 +2,53 @@
 
 #include "bpf_wrapper.hpp"
 
+bpf_wrapper_ring::bpf_wrapper_ring(
+    const int                                          p_fd,
+    const std::function<void(void *const , const int)> p_cb
+):
+    m_cb(p_cb)
+{
+    m_ring = ring_buffer__new(
+        p_fd,
+        &bpf_wrapper_ring::cb_proxy,
+        (void *)this,
+        NULL
+    );
+
+    if (m_ring == NULL) {
+        throw std::runtime_error("ring_buffer__new() failed");
+    }
+}
+
+bpf_wrapper_ring::~bpf_wrapper_ring()
+{
+    ring_buffer__free(m_ring);
+}
+
+void
+bpf_wrapper_ring::poll(const int p_timeout_ms)
+{
+    if (ring_buffer__poll(m_ring, p_timeout_ms) < 0) {
+        throw std::runtime_error("ring_buffer__poll() failed");
+    }
+}
+
+int
+bpf_wrapper_ring::cb_proxy(
+    void *const  p_cb_cookie,
+    void *const  p_data,
+    const size_t p_data_size
+){
+    class bpf_wrapper_ring *const l_self =
+        (class bpf_wrapper_ring *const)p_cb_cookie;
+
+    assert(l_self != NULL);
+
+    l_self->m_cb(p_data, p_data_size);
+
+    return 0;
+}
+
 bpf_wrapper_object::bpf_wrapper_object(
     std::shared_ptr<spdlog::logger> p_log,
     const std::string              &p_object_path
