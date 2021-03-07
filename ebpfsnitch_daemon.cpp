@@ -98,16 +98,15 @@ m_bpf_wrapper(p_log, "./CMakeFiles/probes.dir/probes.c.o")
         true
     );
 
-    m_ring_buffer = ring_buffer__new(
+    m_ring_buffer = std::make_shared<bpf_wrapper_ring>(
         m_bpf_wrapper.lookup_map_fd_by_name("g_probe_ipv4_events"),
-        &ebpfsnitch_daemon::bpf_reader_indirect,
-        (void *)this,
-        NULL
+        std::bind(
+            &ebpfsnitch_daemon::bpf_reader,
+            this,
+            std::placeholders::_1,
+            std::placeholders::_2
+        )
     );
-
-    if (m_ring_buffer == NULL) {
-        throw std::runtime_error("ring_buffer__new() failed");
-    }
 
     m_nfq = std::make_shared<nfq_wrapper>(
         0,
@@ -196,13 +195,7 @@ ebpfsnitch_daemon::probe_thread()
     m_log->trace("ebpfsnitch_daemon::probe_thread() entry");
 
     while (!m_shutdown.load()) {
-        const int err = ring_buffer__poll(m_ring_buffer, 100);
-
-        if (err < 0) {
-            std::cout << "ringbuffer poll error" << std::endl;
-
-            break;
-        }
+        m_ring_buffer->poll(100);
     }
 
     m_log->trace("ebpfsnitch_daemon::probe_thread() exit");
@@ -281,23 +274,6 @@ ebpfsnitch_daemon::bpf_reader(
     }
 
     process_unassociated();
-}
-
-int
-ebpfsnitch_daemon::bpf_reader_indirect(
-    void *const  p_cb_cookie,
-    void *const  p_data,
-    const size_t p_data_size
-){
-    assert(p_cb_cookie);
-    assert(p_data);
-
-    class ebpfsnitch_daemon *const l_self =
-        (class ebpfsnitch_daemon *const)p_cb_cookie;
-
-    l_self->bpf_reader(p_data, p_data_size);
-
-    return 0;
 }
 
 bool

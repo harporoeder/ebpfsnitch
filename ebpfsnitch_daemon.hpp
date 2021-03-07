@@ -57,14 +57,6 @@ private:
         const int   p_data_size
     );
 
-    // static wrapper -> bpf_reader
-    static int
-    bpf_reader_indirect(
-        void *const  p_cb_cookie,
-        void *const  p_data,
-        const size_t p_data_size
-    );
-
     int
     nfq_handler(const struct nlmsghdr *const p_header);
 
@@ -85,11 +77,10 @@ private:
     std::mutex m_unassociated_packets_lock;
     void process_unassociated();
 
-    struct ring_buffer *m_ring_buffer;
-
-    std::shared_ptr<spdlog::logger> m_log;
-    std::shared_ptr<nfq_wrapper>    m_nfq;
-    std::shared_ptr<nfq_wrapper>    m_nfq_incoming;
+    std::shared_ptr<bpf_wrapper_ring> m_ring_buffer;
+    std::shared_ptr<spdlog::logger>   m_log;
+    std::shared_ptr<nfq_wrapper>      m_nfq;
+    std::shared_ptr<nfq_wrapper>      m_nfq_incoming;
 
     bool
     process_associated_event(
