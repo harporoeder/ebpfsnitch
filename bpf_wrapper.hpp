@@ -4,7 +4,6 @@
 #include <memory>
 #include <functional>
 
-#include <bpf/libbpf.h>
 #include <spdlog/spdlog.h>
 
 class bpf_wrapper_ring {
@@ -19,16 +18,9 @@ public:
     void poll(const int p_timeout_ms);
 
 private:
-    struct ring_buffer *m_ring;
+    class impl;
 
-    static int
-    cb_proxy(
-        void *const  p_cb_cookie,
-        void *const  p_data,
-        const size_t p_data_size
-    );
-
-    const std::function<void(void *const , const int)> m_cb;
+    const std::unique_ptr<impl> m_impl;
 };
 
 class bpf_wrapper_object {
@@ -51,10 +43,7 @@ public:
     lookup_map_fd_by_name(const std::string &p_name);
 
 private:
-    const std::unique_ptr<struct bpf_object, void(*)(struct bpf_object *)>
-        m_object;
+    class impl;
 
-    std::shared_ptr<spdlog::logger> m_log;
-
-    std::vector<struct bpf_link *> m_links;
+    const std::unique_ptr<impl> m_impl;
 };

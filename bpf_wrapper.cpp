@@ -1,8 +1,34 @@
 #include <stdexcept>
 
+#include <bpf/libbpf.h>
+
 #include "bpf_wrapper.hpp"
 
-bpf_wrapper_ring::bpf_wrapper_ring(
+class bpf_wrapper_ring::impl {
+public:
+    impl(
+        const int                                          p_fd,
+        const std::function<void(void *const , const int)> p_cb
+    );
+
+    ~impl();
+
+    void poll(const int p_timeout_ms);
+
+private:
+    struct ring_buffer *m_ring;
+
+    static int
+    cb_proxy(
+        void *const  p_cb_cookie,
+        void *const  p_data,
+        const size_t p_data_size
+    );
+
+    const std::function<void(void *const , const int)> m_cb;
+};
+
+bpf_wrapper_ring::impl::impl(
     const int                                          p_fd,
     const std::function<void(void *const , const int)> p_cb
 ):
@@ -10,7 +36,7 @@ bpf_wrapper_ring::bpf_wrapper_ring(
 {
     m_ring = ring_buffer__new(
         p_fd,
-        &bpf_wrapper_ring::cb_proxy,
+        &bpf_wrapper_ring::impl::cb_proxy,
         (void *)this,
         NULL
     );
@@ -20,13 +46,13 @@ bpf_wrapper_ring::bpf_wrapper_ring(
     }
 }
 
-bpf_wrapper_ring::~bpf_wrapper_ring()
+bpf_wrapper_ring::impl::~impl()
 {
     ring_buffer__free(m_ring);
 }
 
 void
-bpf_wrapper_ring::poll(const int p_timeout_ms)
+bpf_wrapper_ring::impl::poll(const int p_timeout_ms)
 {
     if (ring_buffer__poll(m_ring, p_timeout_ms) < 0) {
         throw std::runtime_error("ring_buffer__poll() failed");
@@ -34,13 +60,13 @@ bpf_wrapper_ring::poll(const int p_timeout_ms)
 }
 
 int
-bpf_wrapper_ring::cb_proxy(
+bpf_wrapper_ring::impl::cb_proxy(
     void *const  p_cb_cookie,
     void *const  p_data,
     const size_t p_data_size
 ){
-    class bpf_wrapper_ring *const l_self =
-        (class bpf_wrapper_ring *const)p_cb_cookie;
+    class bpf_wrapper_ring::impl *const l_self =
+        (class bpf_wrapper_ring::impl *const)p_cb_cookie;
 
     assert(l_self != NULL);
 
@@ -49,7 +75,50 @@ bpf_wrapper_ring::cb_proxy(
     return 0;
 }
 
-bpf_wrapper_object::bpf_wrapper_object(
+bpf_wrapper_ring::bpf_wrapper_ring(
+    const int                                          p_fd,
+    const std::function<void(void *const , const int)> p_cb
+):
+    m_impl(std::make_unique<impl>(p_fd, p_cb))
+{}
+
+bpf_wrapper_ring::~bpf_wrapper_ring(){}
+
+void
+bpf_wrapper_ring::poll(const int p_timeout_ms)
+{
+    m_impl->poll(p_timeout_ms);
+}
+
+class bpf_wrapper_object::impl {
+public:
+    impl(
+        std::shared_ptr<spdlog::logger> p_log,
+        const std::string              &p_object_path
+    );
+
+    ~impl();
+
+    void
+    attach_kprobe(
+        const std::string &p_in_bfp_name,
+        const std::string &p_in_kernel_name,
+        const bool         p_is_ret_probe
+    );
+
+    int
+    lookup_map_fd_by_name(const std::string &p_name);
+
+private:
+    const std::unique_ptr<struct bpf_object, void(*)(struct bpf_object *)>
+        m_object;
+
+    std::shared_ptr<spdlog::logger> m_log;
+
+    std::vector<struct bpf_link *> m_links;
+};
+
+bpf_wrapper_object::impl::impl (
     std::shared_ptr<spdlog::logger> p_log,
     const std::string              &p_object_path
 ):
@@ -65,7 +134,7 @@ bpf_wrapper_object::bpf_wrapper_object(
     }
 }
 
-bpf_wrapper_object::~bpf_wrapper_object()
+bpf_wrapper_object::impl::~impl()
 {
     for (const auto &l_link : m_links) {
         bpf_link__disconnect(l_link);
@@ -81,7 +150,7 @@ bpf_wrapper_object::~bpf_wrapper_object()
 }
 
 void
-bpf_wrapper_object::attach_kprobe(
+bpf_wrapper_object::impl::attach_kprobe(
     const std::string &p_in_bfp_name,
     const std::string &p_in_kernel_name,
     const bool         p_is_ret_probe
@@ -109,7 +178,7 @@ bpf_wrapper_object::attach_kprobe(
 }
 
 int
-bpf_wrapper_object::lookup_map_fd_by_name(const std::string &p_name)
+bpf_wrapper_object::impl::lookup_map_fd_by_name(const std::string &p_name)
 {
     const int l_fd = bpf_object__find_map_fd_by_name(
         m_object.get(),
@@ -121,4 +190,28 @@ bpf_wrapper_object::lookup_map_fd_by_name(const std::string &p_name)
     }
 
     return l_fd;
+}
+
+bpf_wrapper_object::bpf_wrapper_object(
+    std::shared_ptr<spdlog::logger> p_log,
+    const std::string              &p_object_path
+):
+    m_impl(std::make_unique<impl>(p_log, p_object_path))
+{}
+
+bpf_wrapper_object::~bpf_wrapper_object(){}
+
+void
+bpf_wrapper_object::attach_kprobe(
+    const std::string &p_in_bfp_name,
+    const std::string &p_in_kernel_name,
+    const bool         p_is_ret_probe
+){
+    m_impl->attach_kprobe(p_in_bfp_name, p_in_kernel_name, p_is_ret_probe);
+}
+
+int
+bpf_wrapper_object::lookup_map_fd_by_name(const std::string &p_name)
+{
+    return m_impl->lookup_map_fd_by_name(p_name);
 }
