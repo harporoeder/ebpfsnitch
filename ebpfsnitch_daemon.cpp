@@ -841,6 +841,8 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
         writeAll(p_sock, l_json_serialized);
     }
 
+    auto l_last_ping = std::chrono::system_clock::now();
+
     struct pollfd l_poll_fd;
     l_poll_fd.fd     = p_sock;
     l_poll_fd.events = POLLIN;
@@ -856,6 +858,22 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
             m_log->error("poll() unix socket error {}", l_ret);
 
             break;
+        }
+
+        if (
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now() - l_last_ping
+            ).count() > 500
+        ) {
+            const nlohmann::json l_json = {
+                { "kind", "ping" }
+            };
+
+            const std::string l_json_serialized = l_json.dump() + "\n";
+
+            writeAll(p_sock, l_json_serialized);
+
+            l_last_ping = std::chrono::system_clock::now();
         }
 
         const auto l_line_opt = l_reader.poll_line();

@@ -1,8 +1,9 @@
-import asyncio
-import sys
-import threading
 import socket
+import sys
+import select
+import threading
 import json
+import queue
 import time
 
 from PyQt5 import QtCore
@@ -10,9 +11,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
 
-# loop.call_soon_threadsafe(queue.put_nowait, time.time())
-g_outbox = None
-loop = asyncio.get_event_loop()
+g_outbox = queue.Queue()
 
 class PromptDialog(QDialog):
     def __init__(self, question, parent=None):
@@ -136,7 +135,7 @@ class MainWindow(QMainWindow):
 
         widget.deleteLater()
 
-        loop.call_soon_threadsafe(g_outbox.put_nowait, serialized)
+        g_outbox.put(serialized)
 
     @QtCore.pyqtSlot()
     def on_add_rule_trigger(self):
@@ -152,6 +151,8 @@ class MainWindow(QMainWindow):
         header_widget.setLayout(header)
 
         body_widget = QTableWidget()
+        body_widget.setEditTriggers(QTableWidget.NoEditTriggers)
+        body_widget.setSelectionMode(QAbstractItemView.NoSelection)
         body_widget.setColumnCount(2)
         body_widget.setRowCount(0)
         body_widget.resizeRowsToContents()
@@ -238,26 +239,63 @@ menu.addAction(quitMenuAction)
 
 tray.setContextMenu(menu)
 
-async def writer_task(writer, outbox):
-    print("started writer_task")
+class DaemonClient:
+    def __init__(self, address, queue):
+        self._address = address
+        self._stopper = threading.Event()
+        self._outbox = queue
+        self._thread = threading.Thread(target=self.__run_supervisor)
+        self._thread.start()
 
-    while True:
-        item = await outbox.get()
-        print("sending outbox item")
-        writer.write(item)
-        await writer.drain()
-        outbox.task_done()
+    def __run_supervisor(self):
+        while self._stopper.is_set() == False:
+            try:
+                self.__run()
+            except Exception as err:
+                print(repr(err))
+                window.handle_clear_rules()
+                self._stopper.wait(1)
 
-async def reader_task(reader, writer, outbox):
-    print("started reader_task")
+    def __run(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.connect(self._address)
+        # self.sock.setblocking(0)
 
-    while True:
-        line = await reader.readuntil(separator=b'\n')
-        line = line.decode()
-        print(line)
-    
+        self.read_buffer = ""
+        
+        while self._stopper.is_set() == False:
+            read_ready, _, _ = select.select([self.sock], [], [], 0.1)
+
+            self.__handle_write()
+
+            if read_ready:
+                self.__handle_read()
+
+    def __handle_read(self):
+        msg = self.sock.recv(1024)
+
+        if not msg:
+            self.sock.close()
+            raise
+
+        self.read_buffer += msg.decode("utf-8")
+
+        while True:
+            lineEnd = self.read_buffer.find("\n")
+            if lineEnd == -1:
+                break
+            line = self.read_buffer[:lineEnd]
+            self.read_buffer = self.read_buffer[lineEnd+1:]
+            self.__handle_line(line)
+
+    def __handle_write(self):
+        while self._outbox.qsize() > 0:
+            item = self._outbox.get()
+            self.sock.sendall(item)
+            self._outbox.task_done()
+
+    def __handle_line(self, line):
         parsed = json.loads(line)
-
         if parsed["kind"] == "query":
             print(parsed["executable"])
 
@@ -325,7 +363,7 @@ async def reader_task(reader, writer, outbox):
 
             serialized = str.encode(json.dumps(command) + "\n")
 
-            outbox.put_nowait(serialized)
+            self._outbox.put(serialized)
         elif parsed["kind"] == "addRule":
             window.handle_add_rule(parsed["body"])
         elif parsed["kind"] == "setRules":
@@ -333,50 +371,19 @@ async def reader_task(reader, writer, outbox):
             for rule in parsed["rules"]:
                 print(rule)
                 window.handle_add_rule(rule)
+        elif parsed["kind"] == "ping":
+            ...
         else:
             print("unknown command")
 
-async def daemon_client():
-    reader, writer = await asyncio.open_unix_connection("/tmp/ebpfsnitch.sock")
-    print("connected to daemon")
+    def stop(self):
+        self._stopper.set()
+        self._thread.join()
 
-    outbox = asyncio.Queue()
+    def send_message(self, message):
+        self._outbox.put(message.encode())
 
-    global g_outbox
-    g_outbox = outbox
+daemonClient = DaemonClient("/tmp/ebpfsnitch.sock", g_outbox)
 
-    await asyncio.wait([
-        asyncio.create_task(writer_task(writer, outbox)),
-        asyncio.create_task(reader_task(reader, writer, outbox))
-    ])
-
-async def daemon_client_supervisor():
-    while True:
-        try:
-            await daemon_client()
-        except ConnectionRefusedError as err:
-            print(repr(err))
-        except asyncio.IncompleteReadError as err:
-            print(repr(err))
-        except FileNotFoundError as err:
-            print(repr(err))
-        window.handle_clear_rules()
-        print("retrying connection in one second")
-        await asyncio.sleep(1)
-
-def thread_function():
-    print("start thread")
-    try:
-        loop.run_until_complete(daemon_client_supervisor())
-    except Exception as err:
-        print("network error: " + repr(err))
-    finally:
-        loop.close()
-    print("end thread")
-
-networkThread = threading.Thread(target=thread_function)
-
-networkThread.start()
 app.exec_()
-loop.call_soon_threadsafe(loop.stop)
-networkThread.join()
+daemonClient.stop()
