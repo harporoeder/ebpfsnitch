@@ -2,7 +2,6 @@
 
 #include <string>
 #include <memory>
-#include <functional>
 
 #include <spdlog/spdlog.h>
 

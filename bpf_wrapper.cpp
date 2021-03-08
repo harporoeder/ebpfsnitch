@@ -1,4 +1,5 @@
 #include <stdexcept>
+#include <functional>
 
 #include <bpf/libbpf.h>
 
