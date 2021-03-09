@@ -635,20 +635,6 @@ ebpfsnitch_daemon::lookup_connection_info(const nfq_event_t &p_event)
     }
 }
 
-std::optional<bool>
-ebpfsnitch_daemon::get_verdict(
-    const struct nfq_event_t       &p_nfq_event,
-    const struct connection_info_t &p_info
-) {
-    std::lock_guard<std::mutex> l_guard(m_verdicts_lock);
-
-    if (m_verdicts.find(p_info.m_executable) != m_verdicts.end()) {
-        return std::optional<bool>(m_verdicts[p_info.m_executable]);
-    } else {
-        return std::nullopt;
-    }
-}
-
 void
 ebpfsnitch_daemon::control_thread()
 {

@@ -99,13 +99,6 @@ private:
     std::atomic<bool> m_shutdown;
     bpf_wrapper_object m_bpf_wrapper;
 
-    std::mutex m_verdicts_lock;
-    std::unordered_map<std::string, bool> m_verdicts;
-    std::optional<bool> get_verdict(
-        const struct nfq_event_t       &p_nfq_event,
-        const struct connection_info_t &p_info
-    );
-
     std::shared_ptr<iptables_raii> m_iptables_raii;
 
     void set_verdict(const uint32_t p_id, const uint32_t p_verdict);
