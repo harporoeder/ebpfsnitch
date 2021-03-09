@@ -52,15 +52,26 @@ is Linux 5.8. This required version may be lowered in the future.
 
 ## Compilation and quick start instructions
 
-On Arch which is the presently only tested system:
+### Installing dependencies on Arch
+
+```bash
+sudo pacman -S clang cmake bpf libnetfilter_queue spdlog boost libmnl \
+    nlohmann-json python3 python-pyqt5 
+```
+
+### Installing dependencies on Ubuntu 20.10 (minimum version)
+
+```bash
+sudo apt-get install cmake clang libboost-all-dev libspdlog-dev \
+    libnetfilter-queue-dev libmnl-dev linux-tools-common nlohmann-json3-dev \
+    libbpf-dev linux-tools-generic python3 python3-pyqt5
+```
 
 ### Setting up the daemon
 
 From the eBPFSnitch repository directory:
 
 ```bash
-sudo pacman -S clang cmake bpf libnetfilter_queue spdlog git boost libmnl \
-    nlohmann-json
 mkdir build
 cd build
 cmake ..
@@ -73,7 +84,6 @@ sudo ./ebpfsnitch
 From the eBPFSnitch repository directory:
 
 ```bash
-sudo pacman -S python3 python-pyqt5 
 cd ui
 python3 main.py
 ```
