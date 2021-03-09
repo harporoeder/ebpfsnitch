@@ -44,9 +44,10 @@ rule_engine_t::rule_t::rule_t(
     const nlohmann::json &p_json,
     const std::string    &p_rule_id
 ){
-    m_allow    = p_json["allow"];
-    m_priority = p_json["priority"];
-    m_rule_id  = p_rule_id;
+    m_allow      = p_json["allow"];
+    m_priority   = p_json["priority"];
+    m_persistent = p_json["persistent"];
+    m_rule_id    = p_rule_id;
 
     for (const auto &p_it : p_json["clauses"]) {
         m_clauses.push_back(clause_t(p_it));
@@ -214,19 +215,24 @@ rule_engine_t::rule_to_json(const rule_t &p_rule)
     }
 
     return {
-        { "ruleId",   p_rule.m_rule_id   },
-        { "allow",    p_rule.m_allow     },
-        { "clauses",  l_clauses          },
-        { "priority", p_rule.m_priority  }
+        { "ruleId",     p_rule.m_rule_id    },
+        { "allow",      p_rule.m_allow      },
+        { "clauses",    l_clauses           },
+        { "priority",   p_rule.m_priority   },
+        { "persistent", p_rule.m_persistent }
     };
 }
 
 const nlohmann::json
-rule_engine_t::rules_to_json()
+rule_engine_t::rules_to_json(const bool p_filter_temporary)
 {
     nlohmann::json l_result = nlohmann::json::array();
 
     for (const auto &l_rule : m_rules) {
+        if (p_filter_temporary && !l_rule.m_persistent) {
+            continue;
+        }
+
         l_result.push_back(rule_to_json(l_rule));
     }
 
@@ -238,7 +244,7 @@ rule_engine_t::save_rules()
 {
     atomically_write_file(
         "rules.json",
-        rules_to_json().dump(4)
+        rules_to_json(true).dump(4)
     );
 }
 

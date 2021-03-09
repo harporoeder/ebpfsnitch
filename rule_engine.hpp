@@ -38,7 +38,7 @@ public:
 
     void delete_rule(const std::string &p_rule_id) noexcept;
 
-    const nlohmann::json rules_to_json();
+    const nlohmann::json rules_to_json(const bool p_filter_temporary=false);
 
 private:
     struct clause_t {
@@ -55,6 +55,7 @@ private:
         std::string                  m_rule_id;
         bool                         m_allow;
         uint32_t                     m_priority;
+        bool                         m_persistent;
     };
 
     static nlohmann::json clause_to_json(const clause_t &p_clause);

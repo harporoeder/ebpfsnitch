@@ -28,6 +28,7 @@ class PromptDialog(QDialog):
         self.forAllSourcePorts          = QCheckBox("All Source Ports")
         self.forAllProtocols            = QCheckBox("All Protocols")
         self.forAllUIDs                 = QCheckBox("All UIDs")
+        self.persistent                 = QCheckBox("Persistent")
         self.priority                   = QSpinBox()
 
         self.forAllSourcePorts.setChecked(True)
@@ -67,6 +68,7 @@ class PromptDialog(QDialog):
         self.layout.addWidget(self.forAllSourcePorts)
         self.layout.addWidget(self.forAllProtocols)
         self.layout.addWidget(self.forAllUIDs)
+        self.layout.addWidget(self.persistent)
         self.layout.addLayout(priorityLayout)
         self.layout.addLayout(buttonLayout)
         self.setLayout(self.layout)
@@ -75,6 +77,7 @@ class MainWindow(QMainWindow):
     _prompt_trigger = QtCore.pyqtSignal()
     _add_rule_trigger = QtCore.pyqtSignal()
     _clear_rules_trigger = QtCore.pyqtSignal()
+    _show_rules_trigger = QtCore.pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -110,6 +113,7 @@ class MainWindow(QMainWindow):
         self._prompt_trigger.connect(self.on_prompt_trigger)
         self._add_rule_trigger.connect(self.on_add_rule_trigger)
         self._clear_rules_trigger.connect(self.on_clear_rules_trigger)
+        self._show_rules_trigger.connect(self.on_show_rules_trigger)
 
     def button_clicked(self):
         print("button click")
@@ -126,7 +130,8 @@ class MainWindow(QMainWindow):
             "forAllUIDs":                 dlg.forAllUIDs.isChecked(),
             "forAllSourceAddresses":      dlg.forAllSourceAddresses.isChecked(),
             "forAllSourcePorts":          dlg.forAllSourcePorts.isChecked(),
-            "priority":                   dlg.priority.value()
+            "priority":                   dlg.priority.value(),
+            "persistent":                 dlg.persistent.isChecked()
         }
         self._done.set()
 
@@ -146,14 +151,13 @@ class MainWindow(QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_add_rule_trigger(self):
-        self.stack.setCurrentIndex(1)
-
         ruleId = self._new_rule["ruleId"]
         delete_button = QPushButton("Remove Rule")
 
         header = QHBoxLayout()
         header.addWidget(QLabel("Rule UUID: " + self._new_rule["ruleId"]))
         header.addWidget(QLabel("Allow: " + str(self._new_rule["allow"])))
+        header.addWidget(QLabel("Persistent: " + str(self._new_rule["persistent"])))
         header.addWidget(QLabel("Priority: " + str(self._new_rule["priority"])))
         header.addWidget(delete_button)
         header_widget = QWidget()
@@ -206,11 +210,18 @@ class MainWindow(QMainWindow):
 
         self._done.set()
 
+    @QtCore.pyqtSlot()
+    def on_show_rules_trigger(self):
+        self.stack.setCurrentIndex(1)
+
     def handle_add_rule(self, rule):
         self._done.clear()
         self._new_rule = rule
         self._add_rule_trigger.emit()
         self._done.wait()
+
+    def handle_show_rules(self):
+        self._show_rules_trigger.emit()
 
     def handle_clear_rules(self):
         self._done.clear()
@@ -316,6 +327,7 @@ class DaemonClient:
                 "kind": "addRule",
                 "allow": result["allow"],
                 "priority": result["priority"],
+                "persistent": result["persistent"],
                 "clauses": [
                     {
                         "field": "executable",
@@ -382,6 +394,7 @@ class DaemonClient:
             for rule in parsed["rules"]:
                 print(rule)
                 window.handle_add_rule(rule)
+            window.handle_show_rules()
         elif parsed["kind"] == "ping":
             ...
         else:
