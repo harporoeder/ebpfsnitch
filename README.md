@@ -12,8 +12,8 @@ is implemented in Python 3 utilizing Qt5.
 
 ## Disclaimer
 
-This is an experimental project, and is currently not usable. The security
-of this application has not been audited by a 3rd party, or even myself. There
+This is an experimental project. The security of this application has
+not been audited by a 3rd party, or even myself. There
 are likely mechanisms by which it could be bypassed. Currently the daemon
 control socket is unauthenticated, and an attacker could impersonate the
 user interface to self authorize.
