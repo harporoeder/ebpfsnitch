@@ -8,6 +8,8 @@ without a kernel module.
 The eBPFSnitch daemon is implemented in C++ 17. The control interface
 is implemented in Python 3 utilizing Qt5.
 
+![screenshot](screenshot.png)
+
 ## Disclaimer
 
 This is an experimental project, and is currently not usable. The security
@@ -57,7 +59,8 @@ On Arch which is the presently only tested system:
 From the eBPFSnitch repository directory:
 
 ```bash
-sudo pacman -S clang cmake bpf libnetfilter_queue spdlog git boost libmnl
+sudo pacman -S clang cmake bpf libnetfilter_queue spdlog git boost libmnl \
+    nlohmann-json
 mkdir build
 cd build
 cmake ..

@@ -1,7 +1,0 @@
-```bash
-sudo apt-get install git cmake clang libboost-all-dev libspdlog-dev \
-    libnetfilter-queue-dev libmnl-dev linux-tools-common nlohmann-json3-dev \
-    libbpf-dev linux-tools-generic
-
-sudo apt-get install python3 python3-pyqt5
-```
