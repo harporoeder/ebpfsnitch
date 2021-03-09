@@ -781,35 +781,42 @@ public:
     std::optional<std::string>
     poll_line()
     {
-        const ssize_t l_status = read(
-            m_sock,
-            &m_buffer + m_position,
-            sizeof(m_buffer) - m_position
-        );
+        for (uint l_iter = 0; l_iter < 2; l_iter++) {
+            const char *const l_end =
+                (const char *)memchr(m_buffer, '\n', m_position);
 
-        if (l_status < 0) {
-            if (errno == EWOULDBLOCK || errno == EAGAIN) {
+            if (l_end != NULL) {
+                const std::string l_result(m_buffer, (size_t)(l_end - m_buffer));
+
+                memcpy(m_buffer, l_end + 1, m_position - (l_end - m_buffer));
+
+                m_position = 0;
+
+                return std::optional<std::string>(l_result);
+            } else if (l_iter != 0) {
                 return std::nullopt;
-            } else {
-                throw std::runtime_error(strerror(errno));
             }
-        } else if (l_status == 0) {
-            throw std::runtime_error("read socket closed");
+
+            const ssize_t l_status = read(
+                m_sock,
+                &m_buffer + m_position,
+                sizeof(m_buffer) - m_position
+            );
+
+            if (l_status < 0) {
+                if (errno == EWOULDBLOCK || errno == EAGAIN) {
+                    return std::nullopt;
+                } else {
+                    throw std::runtime_error(strerror(errno));
+                }
+            } else if (l_status == 0) {
+                throw std::runtime_error("read socket closed");
+            }
+
+            m_position += l_status;
         }
-
-        m_position += l_status;
-
-        char *l_end = (char *)memchr(m_buffer, '\n', m_position);
-
-        if (l_end == NULL) {
-            return std::nullopt;
-        }
-
-        const std::string l_line(m_buffer, l_end - m_buffer);
-
-        m_position = 0;
-
-        return std::optional<std::string>(l_line);
+        // impossible
+        return std::nullopt;
     }
 
 private:

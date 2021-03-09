@@ -81,21 +81,28 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("eBPFSnitch")
 
-        scroll = QScrollArea(self)
-        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        scroll.setWidgetResizable(True)
+        self.scroll = QScrollArea(self)
+        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        self.scroll.setWidgetResizable(True)
 
-        inner = QFrame(scroll)
-        v = QVBoxLayout(scroll)
+        inner = QFrame(self.scroll)
+        v = QVBoxLayout(self.scroll)
         v.setAlignment(Qt.AlignTop)
         v.addWidget(QLabel("Firewall Rules:"))
         inner.setLayout(v)
 
-        scroll.setWidget(inner)
+        self.scroll.setWidget(inner)
 
         self._rules = v
 
-        self.setCentralWidget(scroll)
+        disconnectedLabel = QLabel("Attempting to connect to daemon")
+        disconnectedLabel.setAlignment(Qt.AlignCenter)
+
+        self.stack = QStackedWidget(self)
+        self.stack.addWidget(disconnectedLabel)
+        self.stack.addWidget(self.scroll)
+
+        self.setCentralWidget(self.stack)
 
         self._done = threading.Event()
         self._allow = False
@@ -139,6 +146,8 @@ class MainWindow(QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_add_rule_trigger(self):
+        self.stack.setCurrentIndex(1)
+
         ruleId = self._new_rule["ruleId"]
         delete_button = QPushButton("Remove Rule")
 
@@ -187,6 +196,8 @@ class MainWindow(QMainWindow):
     @QtCore.pyqtSlot()
     def on_clear_rules_trigger(self):
         print("clearing rules")
+
+        self.stack.setCurrentIndex(0)
 
         for i in reversed(range(self._rules.count())): 
             self._rules.itemAt(i).widget().deleteLater()
