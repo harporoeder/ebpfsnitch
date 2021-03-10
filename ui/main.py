@@ -83,6 +83,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.setWindowTitle("eBPFSnitch")
+        self.resize(640, 480)
 
         self.scroll = QScrollArea(self)
         self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
