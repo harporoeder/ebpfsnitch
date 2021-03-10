@@ -422,27 +422,6 @@ ebpfsnitch_daemon::nfq_handler(const struct nlmsghdr *const p_header)
     return MNL_CB_OK;
 }
 
-const char *
-dns_validate_qname(const char *const buffer)
-{
-    const char *iter = buffer;
-
-    while (true) {
-        const uint8_t byte = *iter; iter++;
-
-        if (byte == 0) {
-            return iter;
-        } else if (byte > 63) {
-            std::cout << "got compression" << std::endl;
-            return NULL;
-        }
-
-        iter += byte;
-    }
-
-    return iter;
-}
-
 int
 ebpfsnitch_daemon::nfq_handler_incoming(const struct nlmsghdr *const p_header)
 {
