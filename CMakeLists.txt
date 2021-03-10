@@ -50,6 +50,7 @@ add_executable(
     bpf_wrapper.cpp
     nfq_wrapper.cpp
     dns_parser.cpp
+    process_manager.cpp
 )
 
 target_compile_definitions(ebpfsnitch PRIVATE SPDLOG_FMT_EXTERNAL)

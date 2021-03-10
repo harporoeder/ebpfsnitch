@@ -66,8 +66,7 @@ bpf_wrapper_ring::impl::cb_proxy(
     void *const  p_data,
     const size_t p_data_size
 ){
-    class bpf_wrapper_ring::impl *const l_self =
-        (class bpf_wrapper_ring::impl *const)p_cb_cookie;
+    impl *const l_self = static_cast<impl *>(p_cb_cookie);
 
     assert(l_self != NULL);
 

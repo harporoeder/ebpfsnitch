@@ -14,6 +14,7 @@
 #include "rule_engine.hpp"
 #include "bpf_wrapper.hpp"
 #include "nfq_wrapper.hpp"
+#include "process_manager.hpp"
 
 extern std::condition_variable g_shutdown;
 
@@ -81,6 +82,7 @@ private:
     std::shared_ptr<spdlog::logger>   m_log;
     std::shared_ptr<nfq_wrapper>      m_nfq;
     std::shared_ptr<nfq_wrapper>      m_nfq_incoming;
+    process_manager                   m_process_manager;
 
     bool
     process_associated_event(
@@ -92,9 +94,6 @@ private:
     std::unordered_map<std::string, struct connection_info_t> m_mapping;
     std::optional<struct connection_info_t>
     lookup_connection_info(const nfq_event_t &p_event);
-
-    std::optional<process_info_t>
-    lookup_process_info(const uint32_t p_process_id);
 
     std::atomic<bool> m_shutdown;
     bpf_wrapper_object m_bpf_wrapper;

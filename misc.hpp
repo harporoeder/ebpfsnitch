@@ -79,11 +79,6 @@ struct nfq_event_t {
     ip_protocol_t m_protocol;
 };
 
-struct process_info_t {
-    std::string                m_executable;
-    std::optional<std::string> m_container_id;
-};
-
 std::string
 ipv4_to_string(const uint32_t p_address);
 

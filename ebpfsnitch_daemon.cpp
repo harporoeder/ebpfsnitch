@@ -68,7 +68,8 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
 ):
 m_log(p_log),
 m_shutdown(false),
-m_bpf_wrapper(p_log, "./CMakeFiles/probes.dir/probes.c.o")
+m_bpf_wrapper(p_log, "./CMakeFiles/probes.dir/probes.c.o"),
+m_process_manager()
 {
     m_log->trace("ebpfsnitch_daemon constructor");
     
@@ -228,15 +229,14 @@ ebpfsnitch_daemon::bpf_reader(
     const std::string l_source_address =
         ipv4_to_string(l_info->m_source_address);
 
-    const auto l_process_info_opt = lookup_process_info(l_info->m_process_id);
+    const std::shared_ptr<process_info_t> l_process_info =
+        m_process_manager.lookup_process_info(l_info->m_process_id);
 
-    if (!l_process_info_opt) {
+    if (l_process_info == nullptr) {
         m_log->error("process does not exist {}", l_info->m_process_id);
 
         return;
     }
-
-    const auto l_process_info = l_process_info_opt.value();
 
     /*
     m_log->info(
@@ -264,8 +264,8 @@ ebpfsnitch_daemon::bpf_reader(
 
     l_info2.m_user_id    = l_info->m_user_id;
     l_info2.m_process_id = l_info->m_process_id;
-    l_info2.m_executable = l_process_info.m_executable;
-    l_info2.m_container  = l_process_info.m_container_id.value_or("");
+    l_info2.m_executable = l_process_info->m_executable;
+    l_info2.m_container  = l_process_info->m_container_id.value_or("");
 
     {
         std::lock_guard<std::mutex> l_guard(m_lock);
@@ -1062,58 +1062,6 @@ ebpfsnitch_daemon::set_verdict(const uint32_t p_id, const uint32_t p_verdict)
     std::lock_guard<std::mutex> l_guard(m_response_lock);
 
     m_nfq->send_verdict(p_id, p_verdict);
-}
-
-std::optional<process_info_t>
-ebpfsnitch_daemon::lookup_process_info(const uint32_t p_process_id)
-{
-    const std::string l_path = 
-        "/proc/" +
-        std::to_string(p_process_id) +
-        "/exe";
-
-    char l_readlink_buffer[1024 * 32];
-
-    const ssize_t l_readlink_status = readlink(
-        l_path.c_str(),
-        l_readlink_buffer,
-        sizeof(l_readlink_buffer) - 1
-    );
-
-    if (l_readlink_status == -1) {
-        return std::nullopt;
-    }
-
-    l_readlink_buffer[l_readlink_status] = '\0';
-
-    const std::string l_path_cgroup = 
-        "/proc/" +
-        std::to_string(p_process_id) +
-        "/cgroup";
-
-    struct process_info_t l_process_info;
-
-    l_process_info.m_executable   = std::string(l_readlink_buffer);
-    l_process_info.m_container_id = std::nullopt;
-
-    try {
-        const std::string l_cgroup = file_to_string(l_path_cgroup);
-
-        std::regex l_regex(".*/docker/(\\w+)\n"); 
-        std::smatch l_match;
-
-        if (std::regex_search(
-            l_cgroup.begin(),
-            l_cgroup.end(),
-            l_match,
-            l_regex)
-        ){
-            l_process_info.m_container_id =
-                std::optional<std::string>(l_match[1]);
-        }
-    } catch (...) {}
-
-    return std::optional<struct process_info_t>(l_process_info);
 }
 
 std::optional<std::string>
