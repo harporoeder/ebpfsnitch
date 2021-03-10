@@ -98,7 +98,7 @@ private:
     std::atomic<bool> m_shutdown;
     bpf_wrapper_object m_bpf_wrapper;
 
-    std::shared_ptr<iptables_raii> m_iptables_raii;
+    std::unique_ptr<iptables_raii> m_iptables_raii;
 
     void set_verdict(const uint32_t p_id, const uint32_t p_verdict);
 

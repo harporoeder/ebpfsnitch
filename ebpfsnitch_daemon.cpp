@@ -127,7 +127,7 @@ m_process_manager()
         )
     );
 
-    m_iptables_raii = std::make_shared<iptables_raii>(p_log);
+    m_iptables_raii = std::make_unique<iptables_raii>(p_log);
 
     m_thread_group.push_back(
         std::thread(&ebpfsnitch_daemon::filter_thread, this, m_nfq)
