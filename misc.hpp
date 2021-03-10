@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <optional>
 
 // https://elixir.bootlin.com/linux/latest/source/include/uapi/linux/netfilter_ipv4.h#L16

@@ -1,15 +1,16 @@
-#include <regex>
 #include <unistd.h>
 
 #include "misc.hpp"
 #include "process_manager.hpp"
 
-process_manager::process_manager(){}
+process_manager::process_manager():
+    m_docker_regex(".*/docker/(\\w+)\n")
+{}
 
 process_manager::~process_manager(){}
 
-static std::shared_ptr<process_info_t>
-load_process_info(const uint32_t p_process_id)
+std::shared_ptr<process_info_t>
+process_manager::load_process_info(const uint32_t p_process_id)
 {
     const std::string l_path = 
         "/proc/" +
@@ -43,14 +44,13 @@ load_process_info(const uint32_t p_process_id)
     try {
         const std::string l_cgroup = file_to_string(l_path_cgroup);
 
-        std::regex l_regex(".*/docker/(\\w+)\n"); 
         std::smatch l_match;
 
         if (std::regex_search(
             l_cgroup.begin(),
             l_cgroup.end(),
             l_match,
-            l_regex)
+            m_docker_regex)
         ){
             l_process_info.m_container_id =
                 std::optional<std::string>(l_match[1]);
