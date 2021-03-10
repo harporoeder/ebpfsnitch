@@ -229,7 +229,7 @@ ebpfsnitch_daemon::bpf_reader(
     const std::string l_source_address =
         ipv4_to_string(l_info->m_source_address);
 
-    const std::shared_ptr<process_info_t> l_process_info =
+    const std::shared_ptr<const process_info_t> l_process_info =
         m_process_manager.lookup_process_info(l_info->m_process_id);
 
     if (l_process_info == nullptr) {

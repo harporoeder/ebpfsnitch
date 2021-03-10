@@ -4,12 +4,12 @@
 #include "misc.hpp"
 #include "process_manager.hpp"
 
-process_manager::process_manager(){};
+process_manager::process_manager(){}
 
-process_manager::~process_manager(){};
+process_manager::~process_manager(){}
 
-std::shared_ptr<process_info_t>
-process_manager::lookup_process_info(const uint32_t p_process_id)
+static std::shared_ptr<process_info_t>
+load_process_info(const uint32_t p_process_id)
 {
     const std::string l_path = 
         "/proc/" +
@@ -35,7 +35,7 @@ process_manager::lookup_process_info(const uint32_t p_process_id)
         std::to_string(p_process_id) +
         "/cgroup";
 
-    struct process_info_t l_process_info;
+    process_info_t l_process_info;
 
     l_process_info.m_executable   = std::string(l_readlink_buffer);
     l_process_info.m_container_id = std::nullopt;
@@ -58,4 +58,27 @@ process_manager::lookup_process_info(const uint32_t p_process_id)
     } catch (...) {}
 
     return std::make_shared<struct process_info_t>(l_process_info);
+}
+
+std::shared_ptr<const process_info_t>
+process_manager::lookup_process_info(const uint32_t p_process_id)
+{
+    std::lock_guard<std::mutex> l_guard(m_lock);
+
+    const auto l_iter = m_process_cache.find(p_process_id);
+
+    if (l_iter != m_process_cache.end()) {
+        return l_iter->second;
+    }
+
+    const std::shared_ptr<process_info_t> l_process =
+        load_process_info(p_process_id);
+
+    if (l_process == nullptr) {
+        return nullptr;
+    }
+
+    m_process_cache[p_process_id] = l_process;
+
+    return l_process;
 }
