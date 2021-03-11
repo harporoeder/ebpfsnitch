@@ -6,7 +6,7 @@ set(CMAKE_CXX_COMPILER "clang++")
 
 project(ebpfsnitch)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 # eBPF target ------------------------------------------------------------------
 
@@ -51,6 +51,12 @@ add_executable(
     nfq_wrapper.cpp
     dns_parser.cpp
     process_manager.cpp
+)
+
+target_compile_options(
+    ebpfsnitch
+    PRIVATE
+        -W
 )
 
 target_compile_definitions(ebpfsnitch PRIVATE SPDLOG_FMT_EXTERNAL)

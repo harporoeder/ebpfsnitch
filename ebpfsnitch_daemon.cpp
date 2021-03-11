@@ -69,7 +69,7 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
 m_log(p_log),
 m_shutdown(false),
 m_bpf_wrapper(p_log, "./CMakeFiles/probes.dir/probes.c.o"),
-m_process_manager()
+m_process_manager(p_log)
 {
     m_log->trace("ebpfsnitch_daemon constructor");
     

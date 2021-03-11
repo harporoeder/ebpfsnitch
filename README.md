@@ -5,7 +5,7 @@ It is inspired by [OpenSnitch](https://github.com/evilsocket/opensnitch), and
 [Douane](https://douaneapp.com/), but utilizing modern kernel abstractions,
 without a kernel module.
 
-The eBPFSnitch daemon is implemented in C++ 17. The control interface
+The eBPFSnitch daemon is implemented in C++ 20. The control interface
 is implemented in Python 3 utilizing Qt5.
 
 ![screenshot](screenshot.png)
