@@ -35,6 +35,8 @@ trace_ebpf()
 static void
 signal_handler(const int p_sig)
 {
+    (void)p_sig;
+
     g_log->info("signal_handler");
 
     g_shutdown.notify_all();
@@ -43,6 +45,8 @@ signal_handler(const int p_sig)
 static void
 signal_pipe(const int p_sig)
 {
+    (void)p_sig;
+
     g_log->error("SIGPIPE");
 }
 

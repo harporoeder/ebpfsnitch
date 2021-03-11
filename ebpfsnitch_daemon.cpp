@@ -212,6 +212,7 @@ ebpfsnitch_daemon::bpf_reader(
     const int   p_data_size
 ){
     assert(p_data);
+    (void)p_data_size;
 
     const struct probe_ipv4_event_t *const l_info =
         static_cast<probe_ipv4_event_t *>(p_data);

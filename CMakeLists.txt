@@ -40,6 +40,8 @@ target_compile_options(
 add_custom_command(
     OUTPUT
         probes_compiled.h
+    DEPENDS
+        probes
     COMMAND
         cd ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/probes.dir &&
             xxd -i probes.c.o > ${CMAKE_CURRENT_BINARY_DIR}/probes_compiled.h

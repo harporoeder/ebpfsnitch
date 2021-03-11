@@ -239,7 +239,7 @@ rule_engine_t::rules_to_json(const bool p_filter_temporary)
     return l_result;
 }
 
-const void
+void
 rule_engine_t::save_rules()
 {
     atomically_write_file(

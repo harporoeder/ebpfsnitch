@@ -65,6 +65,6 @@ private:
 
     std::vector<struct rule_t> m_rules;
 
-    const void save_rules();
+    void save_rules();
     void try_load_rules();
 };
