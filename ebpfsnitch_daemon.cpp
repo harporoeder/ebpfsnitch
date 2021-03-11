@@ -27,6 +27,7 @@
 
 #include "dns_parser.hpp"
 #include "ebpfsnitch_daemon.hpp"
+#include "probes_compiled.h"
 
 iptables_raii::iptables_raii(std::shared_ptr<spdlog::logger> p_log):
     m_log(p_log)
@@ -68,7 +69,10 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
 ):
 m_log(p_log),
 m_shutdown(false),
-m_bpf_wrapper(p_log, "./CMakeFiles/probes.dir/probes.c.o"),
+m_bpf_wrapper(
+    p_log,
+    std::string(reinterpret_cast<char*>(probes_c_o), sizeof(probes_c_o))
+),
 m_process_manager(p_log)
 {
     m_log->trace("ebpfsnitch_daemon constructor");

@@ -26,7 +26,7 @@ class bpf_wrapper_object {
 public:
     bpf_wrapper_object(
         std::shared_ptr<spdlog::logger> p_log,
-        const std::string              &p_object_path
+        const std::string              &p_object
     );
 
     ~bpf_wrapper_object();

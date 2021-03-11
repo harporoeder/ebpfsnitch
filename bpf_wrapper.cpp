@@ -120,13 +120,16 @@ private:
 
 bpf_wrapper_object::impl::impl (
     std::shared_ptr<spdlog::logger> p_log,
-    const std::string              &p_object_path
+    const std::string              &p_object
 ):
     m_log(p_log),
-    m_object(bpf_object__open(p_object_path.c_str()), bpf_object__close)
+    m_object(
+        bpf_object__open_mem(p_object.c_str(), p_object.size(), NULL),
+        bpf_object__close
+    )
 {
     if (m_object == NULL) {
-        throw std::runtime_error("bpf_object__open failed " + p_object_path);
+        throw std::runtime_error("bpf_object__open_mem failed " + p_object);
     }
 
     if (bpf_object__load(m_object.get()) != 0) {
@@ -194,9 +197,9 @@ bpf_wrapper_object::impl::lookup_map_fd_by_name(const std::string &p_name)
 
 bpf_wrapper_object::bpf_wrapper_object(
     std::shared_ptr<spdlog::logger> p_log,
-    const std::string              &p_object_path
+    const std::string              &p_object
 ):
-    m_impl(std::make_unique<impl>(p_log, p_object_path))
+    m_impl(std::make_unique<impl>(p_log, p_object))
 {}
 
 bpf_wrapper_object::~bpf_wrapper_object(){}

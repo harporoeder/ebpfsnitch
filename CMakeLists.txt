@@ -37,6 +37,14 @@ target_compile_options(
         -O2 -target bpf
 )
 
+add_custom_command(
+    OUTPUT
+        probes_compiled.h
+    COMMAND
+        cd ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/probes.dir &&
+            xxd -i probes.c.o > ${CMAKE_CURRENT_BINARY_DIR}/probes_compiled.h
+)
+
 # daemon target ----------------------------------------------------------------
 
 find_package( Boost REQUIRED COMPONENTS system program_options )
@@ -51,6 +59,7 @@ add_executable(
     nfq_wrapper.cpp
     dns_parser.cpp
     process_manager.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/probes_compiled.h
 )
 
 target_compile_options(
@@ -65,6 +74,7 @@ target_include_directories(
     ebpfsnitch
     PRIVATE
         ${Boost_INCLUDE_DIRS}
+        ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 target_link_libraries(
