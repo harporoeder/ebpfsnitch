@@ -65,9 +65,11 @@ iptables_raii::remove_rules()
 }
 
 ebpfsnitch_daemon::ebpfsnitch_daemon(
-    std::shared_ptr<spdlog::logger> p_log
+    std::shared_ptr<spdlog::logger> p_log,
+    std::optional<std::string>      p_group
 ):
 m_log(p_log),
+m_group(p_group),
 m_shutdown(false),
 m_bpf_wrapper(
     p_log,
@@ -437,19 +439,9 @@ ebpfsnitch_daemon::nfq_handler_incoming(const struct nlmsghdr *const p_header)
     }
 
     if (l_proto == ip_protocol_t::UDP) {
-        m_log->info(
-            "incoming packet {} source {}:{}, destination {}:{} len {}",
-            ip_protocol_to_string(l_proto),
-            ipv4_to_string(l_nfq_event.m_source_address),
-            l_nfq_event.m_source_port,
-            ipv4_to_string(l_nfq_event.m_destination_address),
-            l_nfq_event.m_destination_port,
-            l_payload_length
-        );
-    }
-
-    if (l_nfq_event.m_source_port == 53) {
-        process_dns(l_data + 28, l_data + l_payload_length);
+        if (l_nfq_event.m_source_port == 53) {
+            process_dns(l_data + 28, l_data + l_payload_length);
+        }
     }
 
     m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
@@ -587,18 +579,30 @@ ebpfsnitch_daemon::control_thread()
             throw std::runtime_error("listen()");
         }
 
-        const struct group *const l_group = getgrnam("wheel");
+        if (m_group) {
+            m_log->info("setting socket group {}", m_group.value());
 
-        if (l_group == NULL) {
-            throw std::runtime_error("getgrnam()");
-        }
+            const struct group *const l_group = getgrnam(
+                m_group.value().c_str()
+            );
 
-        if (chown("/tmp/ebpfsnitch.sock", 0, l_group->gr_gid) == -1) {
-            throw std::runtime_error("chown()");
-        }
+            if (l_group == NULL) {
+                throw std::runtime_error("getgrnam()");
+            }
 
-        if (chmod("/tmp/ebpfsnitch.sock", 660) != 0){
-            throw std::runtime_error("chmod()");
+            if (chown("/tmp/ebpfsnitch.sock", 0, l_group->gr_gid) == -1) {
+                throw std::runtime_error("chown()");
+            }
+
+            if (chmod("/tmp/ebpfsnitch.sock", 660) != 0){
+                throw std::runtime_error("chmod()");
+            }
+        } else {
+            m_log->info("setting control socket world writable");
+
+            if (chmod("/tmp/ebpfsnitch.sock", 666) != 0){
+                throw std::runtime_error("chmod()");
+            }
         }
 
         struct pollfd l_poll_fd;

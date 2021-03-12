@@ -35,7 +35,8 @@ private:
 class ebpfsnitch_daemon {
 public:
     ebpfsnitch_daemon(
-        std::shared_ptr<spdlog::logger> p_log
+        std::shared_ptr<spdlog::logger> p_log,
+        std::optional<std::string>      p_group
     );
 
     ~ebpfsnitch_daemon();
@@ -80,6 +81,7 @@ private:
 
     std::shared_ptr<bpf_wrapper_ring> m_ring_buffer;
     std::shared_ptr<spdlog::logger>   m_log;
+    const std::optional<std::string>  m_group;
     std::shared_ptr<nfq_wrapper>      m_nfq;
     std::shared_ptr<nfq_wrapper>      m_nfq_incoming;
     process_manager                   m_process_manager;

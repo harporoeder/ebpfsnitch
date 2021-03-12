@@ -71,9 +71,14 @@ main(const int p_argc, const char** p_argv)
             l_description("eBPFSnitch Allowed options");
 
         l_description.add_options()
-            ( "help,h",       "produce help message"  )
-            ( "version,v",    "print version"         )
-            ( "remove-rules", "remove iptables rules" );
+            ( "help,h",       "produce help message"          )
+            ( "version,v",    "print version"                 )
+            ( "remove-rules", "remove iptables rules"         )
+            (
+                "group",
+                boost::program_options::value<std::string>(),
+                "group name for control socket"
+            );
 
         boost::program_options::variables_map l_map;
 
@@ -105,22 +110,27 @@ main(const int p_argc, const char** p_argv)
 
             return 0;
         }
-    } catch (const std::exception &l_err) {
-        std::cout << l_err.what() << std::endl;
 
-        return 1;
-    }
+        const std::optional<std::string> l_group = [&](){
+            if (l_map.count("group")) {
+                return std::optional(l_map["group"].as<std::string>());
+            } else {
+                return std::optional<std::string>();
+            }
+        }();
 
-    g_log = spdlog::stdout_color_mt("console");
-    g_log->set_level(spdlog::level::trace);
+        g_log = spdlog::stdout_color_mt("console");
+        g_log->set_level(spdlog::level::trace);
 
-    signal(SIGINT, signal_handler); 
-    signal(SIGPIPE, signal_pipe);
+        signal(SIGINT, signal_handler); 
+        signal(SIGPIPE, signal_pipe);
 
-    try {
         set_limits();
 
-        const auto l_daemon = std::make_shared<ebpfsnitch_daemon>(g_log);
+        const auto l_daemon = std::make_shared<ebpfsnitch_daemon>(
+            g_log,
+            l_group
+        );
 
         std::unique_lock<std::mutex> l_lock(g_shutdown_mutex);
         g_shutdown.wait(l_lock);
