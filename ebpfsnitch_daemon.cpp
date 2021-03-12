@@ -217,14 +217,6 @@ ebpfsnitch_daemon::bpf_reader(
     const struct probe_ipv4_event_t *const l_info =
         static_cast<probe_ipv4_event_t *>(p_data);
 
-    if (l_info->m_remove) {
-        // m_log->info("got remove command {}", l_info->m_handle);
-
-        return;
-    }
-
-    // m_log->info("got protocol {}", l_info->m_family);
-
     const uint16_t l_source_port      = l_info->m_source_port;
     const uint16_t l_destination_port = ntohs(l_info->m_destination_port);
 
@@ -242,22 +234,6 @@ ebpfsnitch_daemon::bpf_reader(
 
         return;
     }
-
-    /*
-    m_log->info(
-        "got event handle {} uid {} pid {} sourcePort {} sourceAddress {} "
-        "destinationPort {} destinationAddress {} protocol {} exe {}",
-        l_info->m_handle,
-        l_info->m_user_id,
-        l_info->m_process_id,
-        l_source_port,
-        l_source_address,
-        l_destination_port,
-        l_destination_address,
-        l_info->m_family,
-        l_process_info.m_executable
-    );
-    */
 
     const std::string l_key =
         l_source_address +
@@ -293,13 +269,10 @@ ebpfsnitch_daemon::process_associated_event(
 
     if (l_verdict) {
         if (l_verdict.value()) {
-            // m_log->info("verdict allow {}", l_info.m_executable);
-
             set_verdict(l_nfq_event.m_nfq_id, NF_ACCEPT);
 
             return true;
         } else {
-            // m_log->info("verdict deny {}", l_info.m_executable);
             set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
 
             return true;
@@ -325,14 +298,10 @@ ebpfsnitch_daemon::process_nfq_event(
 
     if (p_queue_unassociated) {
         if (l_optional_info) {
-            // m_log->info("process_nfq_event queueing undecided");
-
             std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
             m_undecided_packets.push(l_nfq_event);
 
         } else {
-            // m_log->info("process_nfq_event queueing unassociated");
-
             std::lock_guard<std::mutex> l_guard_undecided(
                 m_unassociated_packets_lock
             );
@@ -402,25 +371,6 @@ ebpfsnitch_daemon::nfq_handler(const struct nlmsghdr *const p_header)
         l_nfq_event.m_source_port      = 0;
         l_nfq_event.m_destination_port = 0;
     }
-
-    /*
-    const nf_hook_t p_hook =
-        static_cast<nf_hook_t>(l_header->hook);
-
-    struct nlif_handle *l_nlif = nlif_open();
-    if (l_nlif == NULL) {
-        m_log->error("nlif_open() failed");
-    }
-    nlif_query(l_nlif);
-
-    char l_indev[IFNAMSIZ];
-    nfq_get_indev_name(l_nlif, p_nfa, l_indev);
-
-    char l_outdev[IFNAMSIZ];
-    nfq_get_outdev_name(l_nlif, p_nfa, l_outdev);
-
-    nlif_close(l_nlif);
-    */
 
     process_nfq_event(l_nfq_event, true);
 
@@ -522,14 +472,6 @@ ebpfsnitch_daemon::process_dns(
     const uint16_t l_answers    = dns_get_answer_count(l_dns_start);
     const uint16_t l_authority  = dns_get_authority_count(l_dns_start);
     const uint16_t l_additional = dns_get_additional_count(l_dns_start);
-    
-    m_log->info(
-        "{} {} {} {}",
-        l_questions,
-        l_answers,
-        l_authority,
-        l_additional
-    );
 
     if (l_questions != 1) {
         m_log->warn("dns got {} questions, ignoring", l_questions);
@@ -567,13 +509,11 @@ ebpfsnitch_daemon::process_dns(
         }
 
         if (l_resource.m_type != 1) {
-            m_log->warn("not A record, ignoring");
-
             return;
         }
 
         if (l_resource.m_data_length != 4) {
-            m_log->warn("record length expected 4 bytes");
+            m_log->warn("record length A expected 4 bytes");
 
             return;
         }
