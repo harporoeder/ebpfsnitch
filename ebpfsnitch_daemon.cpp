@@ -360,6 +360,8 @@ ebpfsnitch_daemon::nfq_handler(const struct nlmsghdr *const p_header)
 
     struct nfq_event_t l_nfq_event;
 
+    l_nfq_event.m_user_id             = 0;
+    l_nfq_event.m_group_id            = 0;
     l_nfq_event.m_nfq_id              = l_packet_id;
     l_nfq_event.m_protocol            = l_proto;
     l_nfq_event.m_source_address      = *((uint32_t*) (l_data + 12));
@@ -624,10 +626,13 @@ ebpfsnitch_daemon::control_thread()
                 continue;
             }
 
+            struct sockaddr_un l_client_address;
+            socklen_t l_client_address_len = sizeof(l_client_address);
+
             const int l_client_fd = accept(
                 l_fd,
-                (struct sockaddr *)&l_addr,
-                (socklen_t*)&l_addr
+                (struct sockaddr *)&l_client_address,
+                &l_client_address_len
             );
 
             if (l_client_fd < 0) {
