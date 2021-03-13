@@ -453,37 +453,39 @@ ebpfsnitch_daemon::nfq_handler_incoming(const struct nlmsghdr *const p_header)
 
 void
 ebpfsnitch_daemon::process_dns(
-    const char *const l_dns_start,
+    const char *const p_packet,
     const char *const l_dns_end
 ){
-    if (l_dns_start + 12 > l_dns_end) {
+    const size_t l_packet_size = l_dns_end - p_packet;
+
+    struct dns_header_t l_header;
+
+    if (!dns_parse_header(p_packet, l_packet_size, &l_header)) {
         m_log->warn("dns less than header size");
 
         return;
     }
 
-    const uint16_t l_questions  = dns_get_question_count(l_dns_start);
-    const uint16_t l_answers    = dns_get_answer_count(l_dns_start);
-    const uint16_t l_authority  = dns_get_authority_count(l_dns_start);
-    const uint16_t l_additional = dns_get_additional_count(l_dns_start);
-
-    if (l_questions != 1) {
-        m_log->warn("dns got {} questions, ignoring", l_questions);
+    if (l_header.m_question_count != 1) {
+        m_log->warn(
+            "dns got {} questions, ignoring",
+            l_header.m_question_count
+        );
 
         return;
     }
 
-    if (l_answers == 0) {
-        m_log->warn("dns got {} answers, ignoring", l_answers);
+    if (l_header.m_answer_count == 0) {
+        m_log->warn("dns got {} answers, ignoring", l_header.m_answer_count);
 
         return;
     }
 
-    const char *l_iter = dns_get_body(l_dns_start);
+    const char *l_iter = dns_get_body(p_packet);
 
     struct dns_question_t l_question;
 
-    l_iter = dns_get_question(l_iter, &l_question, l_dns_end);
+    l_iter = dns_parse_question(p_packet, l_packet_size, l_iter, &l_question);
 
     if (l_iter == NULL) {
         m_log->warn("failed to get question");
@@ -491,10 +493,24 @@ ebpfsnitch_daemon::process_dns(
         return;
     }
 
-    for (uint l_i = 0; l_i < l_answers; l_i++) {
+    m_log->info("question was {} bytes {}", l_iter - dns_get_body(p_packet), l_packet_size);
+
+    const std::optional l_question_name = dns_decode_qname2(
+        p_packet, l_packet_size, l_question.m_name, true
+    );
+
+    if (!l_question_name) {
+        m_log->warn("failed to parse question name");
+
+        return;
+    }
+
+    m_log->info("qname was {}", l_question_name.value());
+
+    for (uint l_i = 0; l_i < l_header.m_answer_count; l_i++) {
         struct dns_resource_record_t l_resource;
 
-        l_iter = dns_get_record(l_iter, &l_resource, l_dns_end);
+        l_iter = dns_parse_record(p_packet, l_packet_size, l_iter, &l_resource);
 
         if (l_iter == NULL) {
             m_log->warn("failed to get resource record");
@@ -514,9 +530,20 @@ ebpfsnitch_daemon::process_dns(
 
         const uint32_t l_address = *((uint32_t *)l_resource.m_data);
 
+        const std::optional l_record_name = dns_decode_qname2(
+            p_packet, l_packet_size, l_resource.m_name, true
+        );
+
+        if (!l_record_name) {
+            m_log->warn("failed to parse record name");
+    
+            return;
+        }
+
         m_log->info(
-            "Got A record for {} {}",
-            dns_decode_qname(l_question.m_name),
+            "Got A record for {} {} {}",
+            l_question_name.value(),
+            l_record_name.value(),
             ipv4_to_string(l_address)
         );
 
