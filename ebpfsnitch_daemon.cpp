@@ -461,7 +461,7 @@ ebpfsnitch_daemon::process_dns(
     struct dns_header_t l_header;
 
     if (!dns_parse_header(p_packet, l_packet_size, &l_header)) {
-        m_log->warn("dns less than header size");
+        m_log->warn("dns_parse_header() failed");
 
         return;
     }
@@ -488,24 +488,20 @@ ebpfsnitch_daemon::process_dns(
     l_iter = dns_parse_question(p_packet, l_packet_size, l_iter, &l_question);
 
     if (l_iter == NULL) {
-        m_log->warn("failed to get question");
+        m_log->warn("dns_parse_question() failed");
 
         return;
     }
 
-    m_log->info("question was {} bytes {}", l_iter - dns_get_body(p_packet), l_packet_size);
-
-    const std::optional l_question_name = dns_decode_qname2(
+    const std::optional l_question_name = dns_decode_qname(
         p_packet, l_packet_size, l_question.m_name, true
     );
 
     if (!l_question_name) {
-        m_log->warn("failed to parse question name");
+        m_log->warn("dns_decode_qname() for question failed");
 
         return;
     }
-
-    m_log->info("qname was {}", l_question_name.value());
 
     for (uint l_i = 0; l_i < l_header.m_answer_count; l_i++) {
         struct dns_resource_record_t l_resource;
@@ -513,7 +509,7 @@ ebpfsnitch_daemon::process_dns(
         l_iter = dns_parse_record(p_packet, l_packet_size, l_iter, &l_resource);
 
         if (l_iter == NULL) {
-            m_log->warn("failed to get resource record");
+            m_log->warn("dns_parse_record() failed");
 
             return;
         }
@@ -530,12 +526,12 @@ ebpfsnitch_daemon::process_dns(
 
         const uint32_t l_address = *((uint32_t *)l_resource.m_data);
 
-        const std::optional l_record_name = dns_decode_qname2(
+        const std::optional l_record_name = dns_decode_qname(
             p_packet, l_packet_size, l_resource.m_name, true
         );
 
         if (!l_record_name) {
-            m_log->warn("failed to parse record name");
+            m_log->warn("dns_decode_qname() for record failed");
     
             return;
         }
@@ -548,7 +544,7 @@ ebpfsnitch_daemon::process_dns(
         );
 
         std::lock_guard<std::mutex> l_guard(m_reverse_dns_lock);
-        m_reverse_dns[l_address] = dns_decode_qname(l_question.m_name);
+        m_reverse_dns[l_address] = l_question_name.value();
     }    
 }
 
