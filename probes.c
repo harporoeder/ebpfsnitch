@@ -1,6 +1,7 @@
 #define bpf_target_x86
 
 #include "vmlinux.h"
+
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_tracing.h>
 #include <bpf/bpf_core_read.h>
@@ -48,14 +49,12 @@ struct bpf_map_def SEC("maps") g_send_map2 = {
 
 #define AF_INET 2
 
-// BPF_HASH(g_ipv4_tcp_connect_map, uint64_t, struct sock *);
-
 SEC("kprobe/tcp_v4_connect") int
-msend2(const struct pt_regs *const p_context)
+kprobe_tcp_v4_connect(const struct pt_regs *const p_context)
 {
     struct sock *const l_sock = (void *)PT_REGS_PARM1(p_context);
 
-    uint64_t l_id = bpf_get_current_pid_tgid();
+    const uint64_t l_id = bpf_get_current_pid_tgid();
 
     bpf_map_update_elem(&g_ipv4_tcp_connect_map, &l_id, &l_sock, 0);
 
@@ -63,28 +62,32 @@ msend2(const struct pt_regs *const p_context)
 }
 
 SEC("kretprobe/tcp_v4_connect") int
-msend2ret(const struct pt_regs *const p_context)
+kretprobe_tcp_v4_connect(const struct pt_regs *const p_context)
 {
-    uint64_t l_id  = bpf_get_current_pid_tgid();
-    uint32_t l_pid = l_id >> 32;
+    const uint64_t l_id  = bpf_get_current_pid_tgid();
+    const uint32_t l_pid = l_id >> 32;
 
-    struct sock **l_sock_ref = bpf_map_lookup_elem(
+    struct sock **const l_sock_ref = bpf_map_lookup_elem(
         &g_ipv4_tcp_connect_map,
         &l_id
     );
 
     if (!l_sock_ref) {
-        // bpf_trace_printk("tcp_v4_connect_return no entry");
+        return 0;
+    }
+
+    struct sock *const l_sock = *l_sock_ref;
+
+    if (bpf_map_delete_elem(&g_ipv4_tcp_connect_map, &l_id) != 0) {
+        bpf_printk("bpf_map_delete_elem failed");
 
         return 0;
     }
 
-    struct sock *l_sock = *l_sock_ref;
-
-    uint16_t                  l_source_port;
-    uint16_t                  l_destination_port;
-    uint32_t                  l_source_address;
-    uint32_t                  l_destination_address;
+    uint16_t l_source_port;
+    uint16_t l_destination_port;
+    uint32_t l_source_address;
+    uint32_t l_destination_address;
 
     bpf_probe_read(
         &l_source_port,
@@ -136,16 +139,13 @@ msend2ret(const struct pt_regs *const p_context)
     return 0;
 }
 
-// clang -O2 -target bpf -c bpf.c -o bpf.o
-// struct socket *sock, struct msghdr *msg, int size
-
 SEC("kprobe/security_socket_sendmsg") int
-msend(const struct pt_regs *const p_context)
+kprobe_security_socket_send_msg(const struct pt_regs *const p_context)
 {
     struct socket *const l_socket = (void *)PT_REGS_PARM1(p_context);
     struct msghdr *const l_msg    = (void *)PT_REGS_PARM2(p_context);
 
-    uint64_t l_id = bpf_get_current_pid_tgid();
+    const uint64_t l_id = bpf_get_current_pid_tgid();
 
     bpf_map_update_elem(&g_send_map1, &l_id, &l_socket, 0);
     bpf_map_update_elem(&g_send_map2, &l_id, &l_msg, 0);
@@ -154,7 +154,7 @@ msend(const struct pt_regs *const p_context)
 }
 
 SEC("kretprobe/security_socket_sendmsg") int
-msendret(const struct pt_regs *const p_context_ignore)
+kretprobe_security_socket_send_msg(const struct pt_regs *const p_context_ignore)
 {
     const uint64_t l_id  = bpf_get_current_pid_tgid();
 

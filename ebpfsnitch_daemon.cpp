@@ -98,25 +98,25 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
     m_log->trace("setting up ebpf");
 
     m_bpf_wrapper.attach_kprobe(
-        "msend",
+        "kprobe_security_socket_send_msg",
         "security_socket_sendmsg",
         false
     );
 
     m_bpf_wrapper.attach_kprobe(
-        "msendret",
+        "kretprobe_security_socket_send_msg",
         "security_socket_sendmsg",
         true
     );
 
     m_bpf_wrapper.attach_kprobe(
-        "msend2",
+        "kprobe_tcp_v4_connect",
         "tcp_v4_connect",
         false
     );
 
     m_bpf_wrapper.attach_kprobe(
-        "msend2ret",
+        "kretprobe_tcp_v4_connect",
         "tcp_v4_connect",
         true
     );
