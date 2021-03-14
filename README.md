@@ -31,20 +31,6 @@ can be controlled independently of the base system or other containers.
 Additionally targeting can occur against specific system users. Blanket
 permissions for every instance of Firefox for every user are not required.
 
-## Dependencies
-
-C++:
-[pthread](https://man7.org/linux/man-pages/man7/pthreads.7.html),
-[libbpf](https://github.com/libbpf/libbpf),
-[netfilter_queue](http://www.netfilter.org/projects/libnetfilter_queue/),
-[spdlog](https://github.com/gabime/spdlog),
-[fmt](https://github.com/fmtlib/fmt),
-[nfnetlink](https://www.netfilter.org/projects/libnfnetlink/index.html),
-[boost](https://www.boost.org/),
-[libmnl](https://www.netfilter.org/projects/libmnl/index.html)
-
-Python: [PyQT5](https://pypi.org/project/PyQt5/)
-
 ## Daemon Configuration
 
 eBPFSnitch is configured via command line arguments. The available arguments
@@ -75,6 +61,20 @@ file `rules.json`. To specify a custom path use the `--rules-path` option.
 
 eBPFSnitch currently requires a recent kernel. The minimum supported version
 is Linux 5.8. This required version may be lowered in the future.
+
+## Dependencies
+
+C++:
+[pthread](https://man7.org/linux/man-pages/man7/pthreads.7.html),
+[libbpf](https://github.com/libbpf/libbpf),
+[netfilter_queue](http://www.netfilter.org/projects/libnetfilter_queue/),
+[spdlog](https://github.com/gabime/spdlog),
+[fmt](https://github.com/fmtlib/fmt),
+[nfnetlink](https://www.netfilter.org/projects/libnfnetlink/index.html),
+[boost](https://www.boost.org/),
+[libmnl](https://www.netfilter.org/projects/libmnl/index.html)
+
+Python: [PyQT5](https://pypi.org/project/PyQt5/)
 
 ## Compilation and quick start instructions
 
