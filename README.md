@@ -65,17 +65,17 @@ is Linux 5.8. This required version may be lowered in the future.
 ## How firewall rules operate
 
 Each rule is comprised of a set of clauses, and a verdict. Each clause matches
-a property of a packet to value. If every clause in a rule matches then the
-packet matches the rule, and the verdict for that rule is used (allow / deny).
+a property of a packet to value. If every clause in a rule matches, then the
+packet matches the rule and the verdict for that rule is used (allow / deny).
 
 Rules are sorted by a configured priority. Each rule is tried until a match is
-found, and a verdict can be determined. If no rule matches a packet the daemon
+found and a verdict can be determined. If no rule matches a packet the daemon
 will send a query to the interface which then displays a dialog asking to create
 a new rule to match that packet.
 
-By default rules are not persisted to disk, and when the daemon restarts rules
+By default rules are not persisted to disk.  When the daemon restarts, rules
 will be lost. If through the dialog you check the `persistent` box, the new rule
-will be saved to disk, and be active when the daemon is restarted.
+will be saved to disk and be active when the daemon is restarted.
 
 ## Dependencies
 
