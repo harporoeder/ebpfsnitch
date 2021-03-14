@@ -54,7 +54,8 @@ rule_engine_t::rule_t::rule_t(
     }
 }
 
-rule_engine_t::rule_engine_t()
+rule_engine_t::rule_engine_t(const std::string &p_path):
+    m_path(p_path)
 {
     try_load_rules();
 };
@@ -243,7 +244,7 @@ void
 rule_engine_t::save_rules()
 {
     atomically_write_file(
-        "rules.json",
+        m_path,
         rules_to_json(true).dump(4)
     );
 }
@@ -251,7 +252,7 @@ rule_engine_t::save_rules()
 void
 rule_engine_t::try_load_rules()
 {
-    std::ifstream l_stream("rules.json");
+    std::ifstream l_stream(m_path);
 
     if (l_stream.is_open() == false) {
         return;

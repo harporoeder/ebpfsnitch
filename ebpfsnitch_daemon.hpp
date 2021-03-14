@@ -36,7 +36,8 @@ class ebpfsnitch_daemon {
 public:
     ebpfsnitch_daemon(
         std::shared_ptr<spdlog::logger> p_log,
-        std::optional<std::string>      p_group
+        std::optional<std::string>      p_group,
+        std::optional<std::string>      p_rules_path
     );
 
     ~ebpfsnitch_daemon();

@@ -24,7 +24,7 @@ std::string field_to_string(const field_t p_field);
 
 class rule_engine_t {
 public:
-    rule_engine_t();
+    rule_engine_t(const std::string &p_path);
 
     ~rule_engine_t();
 
@@ -60,6 +60,8 @@ private:
 
     static nlohmann::json clause_to_json(const clause_t &p_clause);
     static nlohmann::json rule_to_json(const rule_t &p_rule);
+
+    const std::string m_path;
 
     std::shared_mutex m_lock;
 

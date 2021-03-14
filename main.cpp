@@ -78,6 +78,11 @@ main(const int p_argc, const char** p_argv)
                 "group",
                 boost::program_options::value<std::string>(),
                 "group name for control socket"
+            )
+            (
+                "rules-path",
+                boost::program_options::value<std::string>(),
+                "file to load / store firewall rules"
             );
 
         boost::program_options::variables_map l_map;
@@ -119,6 +124,14 @@ main(const int p_argc, const char** p_argv)
             }
         }();
 
+        const std::optional<std::string> l_rules_path = [&](){
+            if (l_map.count("rules-path")) {
+                return std::optional(l_map["rules-path"].as<std::string>());
+            } else {
+                return std::optional<std::string>();
+            }
+        }();
+
         g_log = spdlog::stdout_color_mt("console");
         g_log->set_level(spdlog::level::trace);
 
@@ -129,7 +142,8 @@ main(const int p_argc, const char** p_argv)
 
         const auto l_daemon = std::make_shared<ebpfsnitch_daemon>(
             g_log,
-            l_group
+            l_group,
+            l_rules_path
         );
 
         std::unique_lock<std::mutex> l_lock(g_shutdown_mutex);

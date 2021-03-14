@@ -78,16 +78,20 @@ iptables_raii::remove_rules()
 
 ebpfsnitch_daemon::ebpfsnitch_daemon(
     std::shared_ptr<spdlog::logger> p_log,
-    std::optional<std::string>      p_group
+    std::optional<std::string>      p_group,
+    std::optional<std::string>      p_rules_path
 ):
-m_log(p_log),
-m_group(p_group),
-m_shutdown(false),
-m_bpf_wrapper(
-    p_log,
-    std::string(reinterpret_cast<char*>(probes_c_o), sizeof(probes_c_o))
-),
-m_process_manager(p_log)
+    m_rule_engine(p_rules_path.value_or("rules.json")),
+    m_log(p_log),
+    m_group(p_group),
+    m_shutdown(false),
+    m_bpf_wrapper(
+        p_log,
+        std::string(
+            reinterpret_cast<char*>(probes_c_o), sizeof(probes_c_o)
+        )
+    ),
+    m_process_manager(p_log)
 {
     m_log->trace("ebpfsnitch_daemon constructor");
     
