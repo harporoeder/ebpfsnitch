@@ -34,14 +34,21 @@ iptables_raii::iptables_raii(std::shared_ptr<spdlog::logger> p_log):
 {
     m_log->trace("adding iptables rules");
 
-    std::system("iptables --append OUTPUT --jump NFQUEUE --queue-num 0");
+    std::system(
+        "iptables --append OUTPUT -t mangle --match conntrack "
+        "--ctstate NEW,RELATED "
+        "--jump NFQUEUE --queue-num 0"
+    );
 
     std::system("iptables --append INPUT --jump NFQUEUE --queue-num 1");
 
     std::system(
-        "iptables --insert DOCKER-USER --in-interface docker0 ! "
+        "iptables --insert DOCKER-USER "
+        "--match conntrack --ctstate NEW,RELATED "
         "--out-interface docker0 --jump NFQUEUE --queue-num 0"
     );
+
+    std::system("conntrack --flush");
 }
 
 iptables_raii::~iptables_raii()
@@ -54,13 +61,18 @@ iptables_raii::~iptables_raii()
 void
 iptables_raii::remove_rules()
 {
-    std::system("iptables --delete OUTPUT --jump NFQUEUE --queue-num 0");
+    std::system(
+        "iptables --delete OUTPUT -t mangle --match conntrack "
+        "--ctstate NEW,RELATED "
+        "--jump NFQUEUE --queue-num 0"
+    );
 
     std::system("iptables --delete INPUT --jump NFQUEUE --queue-num 1");
 
     std::system(
-        "iptables --delete DOCKER-USER --in-interface docker0 ! "
-        "--out-interface docker0 --jump NFQUEUE --queue-num 0"
+        "iptables --delete DOCKER-USER "
+        "--match conntrack --ctstate NEW,RELATED "
+        " --out-interface docker0 --jump NFQUEUE --queue-num 0"
     );
 }
 
@@ -367,7 +379,7 @@ ebpfsnitch_daemon::nfq_handler(const struct nlmsghdr *const p_header)
     l_nfq_event.m_source_address      = *((uint32_t*) (l_data + 12));
     l_nfq_event.m_destination_address = *((uint32_t*) (l_data + 16));
     l_nfq_event.m_timestamp           = nanoseconds();
-    
+
     if (l_proto == ip_protocol_t::TCP || l_proto == ip_protocol_t::UDP) {
         l_nfq_event.m_source_port      = ntohs(*((uint16_t*) (l_data + 20)));
         l_nfq_event.m_destination_port = ntohs(*((uint16_t*) (l_data + 22)));
