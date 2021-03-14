@@ -1,8 +1,8 @@
 # eBPFSnitch
 
 eBPFSnitch is a Linux Application Level Firewall based on eBPF and NFQUEUE.
-It is inspired by [OpenSnitch](https://github.com/evilsocket/opensnitch), and
-[Douane](https://douaneapp.com/), but utilizing modern kernel abstractions,
+It is inspired by [OpenSnitch](https://github.com/evilsocket/opensnitch) and
+[Douane](https://douaneapp.com/) but utilizing modern kernel abstractions -
 without a kernel module.
 
 The eBPFSnitch daemon is implemented in C++ 20. The control interface
@@ -15,13 +15,13 @@ is implemented in Python 3 utilizing Qt5.
 This is an experimental project. The security of this application has
 not been audited by a 3rd party, or even myself. There
 are likely mechanisms by which it could be bypassed. Currently the daemon
-control socket is unauthenticated, and an attacker could impersonate the
+control socket is unauthenticated and an attacker could impersonate the
 user interface to self authorize.
 
 ## Features
 
 eBPFSnitch supports filtering all outgoing IPv4 based protocols
-(TCP / UDP / ICMP / etc). Filtering for IPv6, and incoming connections should
+(TCP / UDP / ICMP / etc). Filtering for IPv6 and incoming connections should
 be supported in the near future.
 
 A core goal of this project is to integrate well with containerized
@@ -54,7 +54,7 @@ a specific group with the socket to limit access. For example `--group='wheel'`.
 ### Firewall rule persistence
 
 Firewall rules that are marked as persistent are stored on the filesystem in a
-JSON encoding. By default the current working directory is used to store the
+JSON encoding. By default, the current working directory is used to store the
 file `rules.json`. To specify a custom path use the `--rules-path` option.
 
 ## System requirements
@@ -64,16 +64,16 @@ is Linux 5.8. This required version may be lowered in the future.
 
 ## How firewall rules operate
 
-Each rule is comprised of a set of clauses, and a verdict. Each clause matches
+Each rule is comprised of a set of clauses and a verdict. Each clause matches
 a property of a packet to value. If every clause in a rule matches, then the
 packet matches the rule and the verdict for that rule is used (allow / deny).
 
 Rules are sorted by a configured priority. Each rule is tried until a match is
-found and a verdict can be determined. If no rule matches a packet the daemon
+found and a verdict can be determined. If no rule matches a packet, the daemon
 will send a query to the interface which then displays a dialog asking to create
 a new rule to match that packet.
 
-By default rules are not persisted to disk.  When the daemon restarts, rules
+By default rules are not persisted to disk.  When the daemon restarts rules
 will be lost. If through the dialog you check the `persistent` box, the new rule
 will be saved to disk and be active when the daemon is restarted.
 
