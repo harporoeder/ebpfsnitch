@@ -45,6 +45,32 @@ C++:
 
 Python: [PyQT5](https://pypi.org/project/PyQt5/)
 
+## Daemon Configuration
+
+eBPFSnitch is configured via command line arguments. The available arguments
+can be listed with `--help`:
+
+```bash
+eBPFSnitch Allowed options:
+  -h [ --help ]         produce help message
+  -v [ --version ]      print version
+  --remove-rules        remove iptables rules
+  --group arg           group name for control socket
+  --rules-path arg      file to load / store firewall rules
+```
+
+### Control socket authorization
+
+The control interface and daemon communicate utilizing a Unix socket. By default
+the socket can be accessed by any system user. It is recommended to associate
+a specific group with the socket to limit access. For example `--group='wheel'`.
+
+### Firewall rule persistence
+
+Firewall rules that are marked as persistent are stored on the filesystem in a
+JSON encoding. By default the current working directory is used to store the
+file `rules.json`. To specify a custom path use the `--rules-path` option.
+
 ## System requirements
 
 eBPFSnitch currently requires a recent kernel. The minimum supported version
