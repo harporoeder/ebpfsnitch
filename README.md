@@ -96,7 +96,7 @@ Python: [PyQT5](https://pypi.org/project/PyQt5/)
 ### Installing dependencies on Arch
 
 ```bash
-sudo pacman -S clang cmake bpf libnetfilter_queue spdlog boost libmnl \
+sudo pacman -S clang cmake bpf libbpf libnetfilter_queue spdlog boost libmnl \
     nlohmann-json python3 python-pyqt5 
 ```
 
