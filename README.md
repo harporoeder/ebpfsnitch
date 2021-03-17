@@ -97,7 +97,7 @@ Python: [PyQT5](https://pypi.org/project/PyQt5/)
 
 ```bash
 sudo pacman -S clang cmake bpf libbpf libnetfilter_queue spdlog boost libmnl \
-    nlohmann-json python3 python-pyqt5 
+    nlohmann-json conntrack-tools python3 python-pyqt5 
 ```
 
 ### Installing dependencies on Ubuntu 20.10 (minimum version)
@@ -105,7 +105,7 @@ sudo pacman -S clang cmake bpf libbpf libnetfilter_queue spdlog boost libmnl \
 ```bash
 sudo apt-get install cmake clang libboost-all-dev libspdlog-dev \
     libnetfilter-queue-dev libmnl-dev linux-tools-common nlohmann-json3-dev \
-    libbpf-dev linux-tools-generic python3 python3-pyqt5
+    libbpf-dev linux-tools-generic contrack-tools python3 python3-pyqt5
 ```
 
 ### Setting up the daemon
