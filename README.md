@@ -105,7 +105,7 @@ sudo pacman -S clang cmake bpf libbpf libnetfilter_queue spdlog boost libmnl \
 ```bash
 sudo apt-get install cmake clang libboost-all-dev libspdlog-dev \
     libnetfilter-queue-dev libmnl-dev linux-tools-common nlohmann-json3-dev \
-    libbpf-dev linux-tools-generic contrack-tools python3 python3-pyqt5
+    libbpf-dev linux-tools-generic conntrack-tools python3 python3-pyqt5
 ```
 
 ### Setting up the daemon
