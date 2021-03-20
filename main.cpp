@@ -135,7 +135,8 @@ main(const int p_argc, const char** p_argv)
             }
         }();
 
-        signal(SIGINT, signal_handler); 
+        signal(SIGINT, signal_handler);
+        signal(SIGTERM, signal_handler); 
         signal(SIGPIPE, signal_pipe);
 
         set_limits();
