@@ -35,4 +35,6 @@ package() {
     make DESTDIR="$pkgdir/" install
     cd "$srcdir/ebpfsnitch/ui"
     python setup.py install --root="$pkgdir/"
+    cd "$srcdir/ebpfsnitch"
+    install -Dm644 ebpfsnitchd.service -t "$pkgdir/usr/lib/systemd/system"
 }
