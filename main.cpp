@@ -66,6 +66,9 @@ set_limits()
 int
 main(const int p_argc, const char** p_argv)
 {
+    g_log = spdlog::stdout_color_mt("console");
+    g_log->set_level(spdlog::level::trace);
+
     try {
         boost::program_options::options_description
             l_description("eBPFSnitch Allowed options");
@@ -131,9 +134,6 @@ main(const int p_argc, const char** p_argv)
                 return std::optional<std::string>();
             }
         }();
-
-        g_log = spdlog::stdout_color_mt("console");
-        g_log->set_level(spdlog::level::trace);
 
         signal(SIGINT, signal_handler); 
         signal(SIGPIPE, signal_pipe);

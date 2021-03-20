@@ -117,7 +117,7 @@ mkdir build
 cd build
 cmake ..
 make
-sudo ./ebpfsnitch
+sudo ./ebpfsnitchd
 ```
 
 ### Starting the GUI
@@ -125,6 +125,5 @@ sudo ./ebpfsnitch
 From the eBPFSnitch repository directory:
 
 ```bash
-cd ui
-python3 main.py
+python3 ui/ebpfsnitch/entry.py
 ```

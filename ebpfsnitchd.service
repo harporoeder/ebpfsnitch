@@ -1,0 +1,12 @@
+[Unit]
+Description=eBPFSnitch Firewall Daemon
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=10
+ExecStart=/usr/bin/ebpfsnitchd --rules-path='/etc/ebpfsnitchd.json'
+
+[Install]
+WantedBy=multi-user.target
