@@ -24,19 +24,21 @@ depends=(
     'conntrack-tools'
 )
 
-source=('git+https://github.com/harporoeder/ebpfsnitch.git')
-sha256sums=('SKIP')
+source=("https://github.com/harporoeder/ebpfsnitch/archive/refs/tags/$pkgver.tar.gz")
+sha256sums=('7e9a8cc5d15afdeb5f87e904c9e5406d5bef1d1de51601b577d2fc83de5c19ab')
 
 build() {
-    cmake -DCMAKE_INSTALL_PREFIX="/usr/bin" -B build -S "${pkgname}"
-    make -C build
+    cd "$srcdir/ebpfsnitch-$pkgver"
+    mkdir build && cd build
+    cmake -D CMAKE_INSTALL_PREFIX="/usr/bin" ..
+    make
 }
 
 package() {
-    cd build
+    cd "$srcdir/ebpfsnitch-$pkgver/build"
     make DESTDIR="$pkgdir/" install
-    cd "$srcdir/ebpfsnitch/ui"
+    cd "$srcdir/ebpfsnitch-$pkgver/ui"
     python setup.py install --root="$pkgdir/"
-    cd "$srcdir/ebpfsnitch"
+    cd "$srcdir/ebpfsnitch-$pkgver"
     install -Dm644 ebpfsnitchd.service -t "$pkgdir/usr/lib/systemd/system"
 }
