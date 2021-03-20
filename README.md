@@ -77,7 +77,26 @@ By default rules are not persisted to disk.  When the daemon restarts rules
 will be lost. If through the dialog you check the `persistent` box, the new rule
 will be saved to disk and be active when the daemon is restarted.
 
-## Dependencies
+## Installation with a package manager
+
+eBPFSnitch is currently only available on the Arch user repository. Other
+distributions will require building from source manually.
+
+```bash
+# installation using the yay aur helper
+yay -S ebpfsnitch
+# start daemon
+sudo systemctl start ebpfsnitchd
+# start the ui
+ebpfsnitch
+```
+
+## Compilation instructions
+
+If a package is not available for your distribution you can build eBPFSnitch
+from scratch as follows:
+
+### Dependencies
 
 C++:
 [pthread](https://man7.org/linux/man-pages/man7/pthreads.7.html),
@@ -90,8 +109,6 @@ C++:
 [libmnl](https://www.netfilter.org/projects/libmnl/index.html)
 
 Python: [PyQT5](https://pypi.org/project/PyQt5/)
-
-## Compilation and quick start instructions
 
 ### Installing dependencies on Arch
 
