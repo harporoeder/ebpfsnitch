@@ -91,3 +91,10 @@ target_link_libraries(
         mnl
         ${Boost_LIBRARIES}
 )
+
+install(
+    TARGETS
+        ebpfsnitch
+    DESTINATION
+        ${CMAKE_INSTALL_PREFIX}
+)
