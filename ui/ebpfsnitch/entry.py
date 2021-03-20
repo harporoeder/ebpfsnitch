@@ -7,6 +7,7 @@ import threading
 import json
 import queue
 import time
+import os
 
 from PyQt5 import QtCore
 from PyQt5.QtGui import *
@@ -244,7 +245,7 @@ app.setQuitOnLastWindowClosed(False)
 window = MainWindow()
 window.show()
 
-icon = QIcon("ebpfsnitch.png")
+icon = QIcon(os.path.dirname(os.path.abspath(__file__)) + "/ebpfsnitch.png")
 tray = QSystemTrayIcon()
 tray.setIcon(icon)
 tray.setVisible(True)

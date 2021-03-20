@@ -7,8 +7,7 @@ setup(
    author='Harpo Roeder',
    author_email='roederharpo@protonmail.ch',
    packages=find_packages(),
+   include_package_data=True,
    install_requires=['PyQt5'],
-   package_data={'': ['*.*']},
-   data_files=[('/usr/share/icons/hicolor/64x64/apps', ['ebpfsnitch.png'])],
-   scripts=['ebpfsnitch']
+   scripts=['bin/ebpfsnitch']
 )
