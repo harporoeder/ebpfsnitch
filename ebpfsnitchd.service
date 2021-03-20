@@ -6,7 +6,7 @@ After=network.target
 Type=simple
 Restart=always
 RestartSec=10
-ExecStart=/usr/bin/ebpfsnitchd -rules-path='/etc/ebpfsnitchd.json'
+ExecStart=/usr/bin/ebpfsnitchd --rules-path='/etc/ebpfsnitchd.json'
 
 [Install]
 WantedBy=multi-user.target
