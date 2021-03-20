@@ -7,7 +7,7 @@ pkgdesc='eBPF based Application Firewall'
 arch=('x86_64')
 license=('BSD3')
 
-provides('ebpfsnitch', 'ebpfsnitchd')
+provides=('ebpfsnitch' 'ebpfsnitchd')
 
 depends=(
     'cmake'
