@@ -1,11 +1,13 @@
 # Maintainer: Harpo Roeder <roederharpo@protonmail.ch>
 
-pkgname="ebpfsnitch"
+pkgname='ebpfsnitch'
 pkgver=0.1.0
 pkgrel=1
-pkgdesc="eBPF based Application Firewall"
-arch=("x86_64")
+pkgdesc='eBPF based Application Firewall'
+arch=('x86_64')
 license=('BSD3')
+
+provides('ebpfsnitch', 'ebpfsnitchd')
 
 depends=(
     'cmake'
@@ -22,7 +24,7 @@ depends=(
     'conntrack-tools'
 )
 
-source=('git+https://github.com/harporoeder/ebpfsnitch.git#branch=hr/pkgbuild')
+source=('git+https://github.com/harporoeder/ebpfsnitch.git')
 sha256sums=('SKIP')
 
 build() {
