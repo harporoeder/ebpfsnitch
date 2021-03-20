@@ -52,7 +52,7 @@ add_custom_command(
 find_package( Boost REQUIRED COMPONENTS system program_options )
 
 add_executable(
-    ebpfsnitch
+    ebpfsnitchd
     main.cpp
     ebpfsnitch_daemon.cpp
     rule_engine.cpp
@@ -65,22 +65,22 @@ add_executable(
 )
 
 target_compile_options(
-    ebpfsnitch
+    ebpfsnitchd
     PRIVATE
         -W
 )
 
-target_compile_definitions(ebpfsnitch PRIVATE SPDLOG_FMT_EXTERNAL)
+target_compile_definitions(ebpfsnitchd PRIVATE SPDLOG_FMT_EXTERNAL)
 
 target_include_directories(
-    ebpfsnitch
+    ebpfsnitchd
     PRIVATE
         ${Boost_INCLUDE_DIRS}
         ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 target_link_libraries(
-    ebpfsnitch
+    ebpfsnitchd
     PRIVATE
         bpf
         netfilter_queue
@@ -94,7 +94,7 @@ target_link_libraries(
 
 install(
     TARGETS
-        ebpfsnitch
+        ebpfsnitchd
     DESTINATION
         ${CMAKE_INSTALL_PREFIX}
 )
