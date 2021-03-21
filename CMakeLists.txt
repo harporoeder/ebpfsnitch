@@ -49,7 +49,7 @@ add_custom_command(
 
 # daemon target ----------------------------------------------------------------
 
-find_package( Boost REQUIRED COMPONENTS system program_options )
+find_package( Boost REQUIRED COMPONENTS container system program_options )
 
 add_executable(
     ebpfsnitchd
