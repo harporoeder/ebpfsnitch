@@ -14,8 +14,6 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import Qt
 
-g_outbox = queue.Queue()
-
 class PromptDialog(QDialog):
     def __init__(self, question, parent=None):
         super().__init__(parent=parent)
@@ -119,8 +117,8 @@ class MainWindow(QMainWindow):
         self._clear_rules_trigger.connect(self.on_clear_rules_trigger)
         self._show_rules_trigger.connect(self.on_show_rules_trigger)
 
-    def button_clicked(self):
-        print("button click")
+    def set_daemon_client(self, client):
+        self._client = client
 
     @QtCore.pyqtSlot()
     def on_prompt_trigger(self):        
@@ -147,11 +145,9 @@ class MainWindow(QMainWindow):
             "ruleId": ruleId
         }
 
-        serialized = str.encode(json.dumps(command) + "\n")
+        self._client.send_dict(command)
 
         widget.deleteLater()
-
-        g_outbox.put(serialized)
 
     @QtCore.pyqtSlot()
     def on_add_rule_trigger(self):
@@ -239,38 +235,15 @@ class MainWindow(QMainWindow):
         self._done.wait()
         return self._verdict
 
-app = QApplication(sys.argv)
-app.setQuitOnLastWindowClosed(False)
-
-window = MainWindow()
-window.show()
-
-icon = QIcon(os.path.dirname(os.path.abspath(__file__)) + "/ebpfsnitch.png")
-tray = QSystemTrayIcon()
-tray.setIcon(icon)
-tray.setVisible(True)
-
-menu = QMenu()
-showMenuAction = QAction("show")
-showMenuAction.triggered.connect(window.show)
-menu.addAction(showMenuAction)
-
-hideMenuAction = QAction("hide")
-hideMenuAction.triggered.connect(window.hide)
-menu.addAction(hideMenuAction)
-
-quitMenuAction = QAction("Quit")
-quitMenuAction.triggered.connect(app.quit)
-menu.addAction(quitMenuAction)
-
-tray.setContextMenu(menu)
-
 class DaemonClient:
-    def __init__(self, address, queue):
+    def __init__(self, address, window):
         self._address = address
         self._stopper = threading.Event()
-        self._outbox = queue
+        self._outbox = queue.Queue()
+        self._window = window
         self._thread = threading.Thread(target=self.__run_supervisor)
+
+    def start(self):
         self._thread.start()
 
     def __run_supervisor(self):
@@ -279,13 +252,12 @@ class DaemonClient:
                 self.__run()
             except Exception as err:
                 print(repr(err))
-                window.handle_clear_rules()
+                self._window.handle_clear_rules()
                 self._stopper.wait(1)
 
     def __run(self):
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.sock.connect(self._address)
-        # self.sock.setblocking(0)
 
         self.read_buffer = ""
         
@@ -325,7 +297,7 @@ class DaemonClient:
         if parsed["kind"] == "query":
             print(parsed["executable"])
 
-            result = window.handle_prompt(parsed)
+            result = self._window.handle_prompt(parsed)
 
             command = {
                 "kind": "addRule",
@@ -388,17 +360,15 @@ class DaemonClient:
                     }
                 )
 
-            serialized = str.encode(json.dumps(command) + "\n")
-
-            self._outbox.put(serialized)
+            self.send_dict(command)
         elif parsed["kind"] == "addRule":
-            window.handle_add_rule(parsed["body"])
+            self._window.handle_add_rule(parsed["body"])
         elif parsed["kind"] == "setRules":
-            window.handle_clear_rules()
+            self._window.handle_clear_rules()
             for rule in parsed["rules"]:
                 print(rule)
-                window.handle_add_rule(rule)
-            window.handle_show_rules()
+                self._window.handle_add_rule(rule)
+            self._window.handle_show_rules()
         elif parsed["kind"] == "ping":
             ...
         else:
@@ -408,10 +378,41 @@ class DaemonClient:
         self._stopper.set()
         self._thread.join()
 
-    def send_message(self, message):
-        self._outbox.put(message.encode())
+    def send_dict(self, message):
+        self._outbox.put(str.encode(json.dumps(message) + "\n"))
 
-daemonClient = DaemonClient("/tmp/ebpfsnitch.sock", g_outbox)
+def main():
+    app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
 
-app.exec_()
-daemonClient.stop()
+    window = MainWindow()
+    window.show()
+
+    icon = QIcon(os.path.dirname(os.path.abspath(__file__)) + "/ebpfsnitch.png")
+    tray = QSystemTrayIcon()
+    tray.setIcon(icon)
+    tray.setVisible(True)
+
+    menu = QMenu()
+    showMenuAction = QAction("show")
+    showMenuAction.triggered.connect(window.show)
+    menu.addAction(showMenuAction)
+
+    hideMenuAction = QAction("hide")
+    hideMenuAction.triggered.connect(window.hide)
+    menu.addAction(hideMenuAction)
+
+    quitMenuAction = QAction("Quit")
+    quitMenuAction.triggered.connect(app.quit)
+    menu.addAction(quitMenuAction)
+
+    tray.setContextMenu(menu)
+
+    daemonClient = DaemonClient("/tmp/ebpfsnitch.sock", window)
+    window.set_daemon_client(daemonClient)
+
+    daemonClient.start()
+    app.exec_()
+    daemonClient.stop()
+
+main()
