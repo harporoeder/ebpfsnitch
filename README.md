@@ -131,8 +131,8 @@ the 21.04 version.
 ```bash
 wget http://mirrors.kernel.org/ubuntu/pool/universe/libn/libnetfilter-queue/libnetfilter-queue1_1.0.5-2_amd64.deb
 wget http://mirrors.kernel.org/ubuntu/pool/universe/libn/libnetfilter-queue/libnetfilter-queue-dev_1.0.5-2_amd64.deb
-dpkg --install libnetfilter-queue1_1.0.5-2_amd64.deb
-dpkg --install libnetfilter-queue-dev_1.0.5-2_amd64.deb
+sudo dpkg --install libnetfilter-queue1_1.0.5-2_amd64.deb
+sudo dpkg --install libnetfilter-queue-dev_1.0.5-2_amd64.deb
 ```
 
 You may be prompted during compilation to install an additional package
