@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 
 #include <boost/bimap.hpp>
+#include <boost/container/allocator.hpp>
 #include <boost/assign.hpp>
 
 #include "misc.hpp"
@@ -40,7 +41,11 @@ nf_hook_to_string(const nf_hook_t p_hook)
     return std::string("unknown");
 }
 
-typedef boost::bimaps::bimap<ip_protocol_t, std::string> g_protocol_map_type;
+typedef boost::bimaps::bimap<
+    ip_protocol_t,
+    std::string,
+    boost::container::allocator<void>
+> g_protocol_map_type;
 
 const g_protocol_map_type g_protocol_map =
     boost::assign::list_of<g_protocol_map_type::relation>

@@ -2,6 +2,7 @@
 #include <fstream>
 
 #include <boost/bimap.hpp>
+#include <boost/container/allocator.hpp>
 #include <boost/assign.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
@@ -9,7 +10,11 @@
 
 #include "rule_engine.hpp"
 
-typedef boost::bimaps::bimap<field_t, std::string> g_field_map_type;
+typedef boost::bimaps::bimap<
+    field_t,
+    std::string,
+    boost::container::allocator<void>
+> g_field_map_type;
 
 const g_field_map_type g_field_map =
     boost::assign::list_of<g_field_map_type::relation>
