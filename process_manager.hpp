@@ -9,10 +9,15 @@
 #include <thread>
 #include <atomic>
 
+#include <spdlog/spdlog.h>
+
 struct process_info_t {
+    uint32_t                   m_process_id;
     std::string                m_executable;
     std::optional<std::string> m_container_id;
     uint64_t                   m_start_time;
+    uint32_t                   m_user_id;
+    uint32_t                   m_group_id;
 };
 
 class process_manager {

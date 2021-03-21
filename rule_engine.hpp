@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 
 #include "misc.hpp"
+#include "process_manager.hpp"
 
 enum class field_t {
     executable,
@@ -32,8 +33,8 @@ public:
 
     const std::optional<bool>
     get_verdict(
-        const struct nfq_event_t       &p_nfq_event,
-        const struct connection_info_t &p_info
+        const struct nfq_event_t    &p_nfq_event,
+        const struct process_info_t &p_info
     ) noexcept;
 
     void delete_rule(const std::string &p_rule_id) noexcept;

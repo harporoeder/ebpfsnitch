@@ -253,23 +253,23 @@ ebpfsnitch_daemon::bpf_reader(
         return;
     }
 
+    // sanity check compare expected properties
+    if (l_info->m_user_id != l_process_info->m_user_id) {
+        m_log->error("ebpf and proc mismatch userid");
+
+        return;
+    }
+
     const std::string l_key =
         l_source_address +
         std::to_string(l_source_port) +
         l_destination_address +
         std::to_string(l_destination_port);
 
-    struct connection_info_t l_info2;
-
-    l_info2.m_user_id    = l_info->m_user_id;
-    l_info2.m_process_id = l_info->m_process_id;
-    l_info2.m_executable = l_process_info->m_executable;
-    l_info2.m_container  = l_process_info->m_container_id.value_or("");
-
     {
         std::lock_guard<std::mutex> l_guard(m_lock);
 
-        m_mapping[l_key] = l_info2;
+        m_mapping[l_key] = l_process_info;
     }
 
     process_unassociated();
@@ -277,8 +277,8 @@ ebpfsnitch_daemon::bpf_reader(
 
 bool
 ebpfsnitch_daemon::process_associated_event(
-    const struct nfq_event_t       &l_nfq_event,
-    const struct connection_info_t &l_info
+    const struct nfq_event_t    &l_nfq_event,
+    const struct process_info_t &l_info
 ) {
     const std::optional<bool> l_verdict = m_rule_engine.get_verdict(
         l_nfq_event,
@@ -305,11 +305,11 @@ ebpfsnitch_daemon::process_nfq_event(
     const struct nfq_event_t &l_nfq_event,
     const bool                p_queue_unassociated
 ) {
-    const std::optional<struct connection_info_t> l_optional_info =
+    const std::shared_ptr<const struct process_info_t> l_optional_info =
         lookup_connection_info(l_nfq_event);
 
     if (l_optional_info) {
-        if (process_associated_event(l_nfq_event, l_optional_info.value())) {
+        if (process_associated_event(l_nfq_event, *l_optional_info)) {
             return true;
         }
     }
@@ -564,7 +564,7 @@ ebpfsnitch_daemon::process_dns(
     }    
 }
 
-std::optional<struct connection_info_t>
+std::shared_ptr<const struct process_info_t>
 ebpfsnitch_daemon::lookup_connection_info(const nfq_event_t &p_event)
 {
     const std::string l_key =
@@ -576,7 +576,7 @@ ebpfsnitch_daemon::lookup_connection_info(const nfq_event_t &p_event)
     std::lock_guard<std::mutex> l_guard(m_lock);
 
     if (m_mapping.find(l_key) != m_mapping.end()) {
-        return std::optional<struct connection_info_t>(m_mapping[l_key]);
+        return m_mapping[l_key];
     } else {
         const std::string l_key2 =
             "0.0.0.0" +
@@ -585,10 +585,10 @@ ebpfsnitch_daemon::lookup_connection_info(const nfq_event_t &p_event)
             std::to_string(p_event.m_destination_port);
         
         if (m_mapping.find(l_key2) != m_mapping.end()) {
-            return std::optional<struct connection_info_t>(m_mapping[l_key2]);
+            return m_mapping[l_key2];
         }
 
-        return std::nullopt;
+        return nullptr;
     }
 }
 
@@ -892,10 +892,10 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
             l_nfq_event = m_undecided_packets.front();
         }
 
-        const std::optional<struct connection_info_t> l_optional_info =
+        const std::shared_ptr<const struct process_info_t> l_info =
             lookup_connection_info(l_nfq_event);
 
-        if (!l_optional_info) {
+        if (!l_info) {
             m_log->error("handle_control has no connection info");
 
             set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
@@ -906,24 +906,23 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
             continue;
         }
 
-        const struct connection_info_t l_info = l_optional_info.value();
-
         const std::string l_domain =
             lookup_domain(l_nfq_event.m_destination_address)
                 .value_or("");
 
         const nlohmann::json l_json = {
             { "kind",               "query"                        },
-            { "executable",         l_info.m_executable            },
-            { "userId",             l_info.m_user_id               },
-            { "processId",          l_info.m_process_id            },
+            { "executable",         l_info->m_executable           },
+            { "userId",             l_info->m_user_id              },
+            { "processId",          l_info->m_process_id           },
             { "sourceAddress",
                 ipv4_to_string(l_nfq_event.m_source_address)       },
             { "sourcePort",         l_nfq_event.m_source_port      },
             { "destinationPort",    l_nfq_event.m_destination_port },
             { "destinationAddress",
                 ipv4_to_string(l_nfq_event.m_destination_address)  },
-            { "container",          l_info.m_container             },
+            { "container",
+                l_info->m_container_id.value_or("")                },
             { "protocol",
                 ip_protocol_to_string(l_nfq_event.m_protocol)      },
             { "domain",             l_domain                       }
@@ -949,13 +948,11 @@ ebpfsnitch_daemon::process_unassociated()
     while (m_unassociated_packets.size()) {
         struct nfq_event_t l_nfq_event = m_unassociated_packets.front(); 
 
-        const std::optional<struct connection_info_t> l_optional_info =
+        std::shared_ptr<const struct process_info_t> l_info =
             lookup_connection_info(l_nfq_event);
 
-        if (l_optional_info) {
-            struct connection_info_t l_info = l_optional_info.value();
-
-            if (!process_associated_event(l_nfq_event, l_info)) {
+        if (l_info) {
+            if (!process_associated_event(l_nfq_event, *l_info)) {
                 std::lock_guard<std::mutex> l_guard2(
                     m_undecided_packets_lock
                 );
@@ -994,13 +991,11 @@ ebpfsnitch_daemon::process_unhandled()
     while (m_undecided_packets.size()) {
         struct nfq_event_t l_unhandled = m_undecided_packets.front(); 
 
-        const std::optional<struct connection_info_t> l_optional_info =
+        const std::shared_ptr<const struct process_info_t> l_info =
             lookup_connection_info(l_unhandled);
 
-        if (l_optional_info) {
-            if (!process_associated_event(
-                l_unhandled, l_optional_info.value()))
-            {
+        if (l_info) {
+            if (!process_associated_event(l_unhandled, *l_info)) {
                 // m_log->info("still undecided");
 
                 l_remaining.push(l_unhandled);

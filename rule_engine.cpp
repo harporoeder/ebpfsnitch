@@ -106,8 +106,8 @@ rule_engine_t::delete_rule(const std::string &p_rule_id) noexcept
 
 const std::optional<bool>
 rule_engine_t::get_verdict(
-    const struct nfq_event_t       &p_nfq_event,
-    const struct connection_info_t &p_info
+    const struct nfq_event_t    &p_nfq_event,
+    const struct process_info_t &p_info
 ) noexcept {
     std::shared_lock l_guard(m_lock);
 
@@ -162,7 +162,7 @@ rule_engine_t::get_verdict(
                     break;
                 }
                 case field_t::container_id: {
-                    if (l_clause.m_value != p_info.m_container) {
+                    if (l_clause.m_value != p_info.m_container_id) {
                         l_match = false;
                     }
 

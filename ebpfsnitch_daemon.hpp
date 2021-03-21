@@ -89,13 +89,18 @@ private:
 
     bool
     process_associated_event(
-        const struct nfq_event_t       &l_nfq_event,
-        const struct connection_info_t &l_info
+        const struct nfq_event_t    &l_nfq_event,
+        const struct process_info_t &l_info
     );
 
     std::mutex m_lock;
-    std::unordered_map<std::string, struct connection_info_t> m_mapping;
-    std::optional<struct connection_info_t>
+
+    std::unordered_map<
+        std::string,
+        std::shared_ptr<const struct process_info_t>
+    > m_mapping;
+
+    std::shared_ptr<const struct process_info_t>
     lookup_connection_info(const nfq_event_t &p_event);
 
     std::atomic<bool> m_shutdown;

@@ -27,6 +27,15 @@ process_manager::~process_manager()
 std::shared_ptr<process_info_t>
 process_manager::load_process_info(const uint32_t p_process_id)
 {
+    struct stat l_stat;
+    const std::string l_stat_path = "/proc/" + std::to_string(p_process_id);
+
+    if (stat(l_stat_path.c_str(), &l_stat) == -1) {
+        m_log->error("stat() {}", strerror(errno));
+
+        return nullptr;
+    }
+
     const std::string l_path = 
         "/proc/" +
         std::to_string(p_process_id) +
@@ -53,8 +62,11 @@ process_manager::load_process_info(const uint32_t p_process_id)
 
     process_info_t l_process_info;
 
+    l_process_info.m_process_id   = p_process_id;
     l_process_info.m_executable   = std::string(l_readlink_buffer);
     l_process_info.m_container_id = std::nullopt;
+    l_process_info.m_user_id      = l_stat.st_uid;
+    l_process_info.m_group_id     = l_stat.st_gid;
 
     try {
         const std::string l_cgroup = file_to_string(l_path_cgroup);
