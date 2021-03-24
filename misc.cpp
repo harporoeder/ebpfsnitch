@@ -132,3 +132,22 @@ ipv4_to_string(const uint32_t p_address)
 
     return std::string(l_buffer);
 }
+
+std::string
+ipv6_to_string(const __uint128_t p_address)
+{
+    char l_buffer[INET6_ADDRSTRLEN];
+
+    const char *const l_status = inet_ntop(
+        AF_INET6,
+        &p_address,
+        l_buffer,
+        INET6_ADDRSTRLEN
+    );
+
+    if (l_status == NULL) {
+        throw std::runtime_error("inet_ntop() failed");
+    }
+
+    return std::string(l_buffer);
+}

@@ -121,6 +121,18 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
         true
     );
 
+    m_bpf_wrapper.attach_kprobe(
+        "kprobe_tcp_v6_connect",
+        "tcp_v6_connect",
+        false
+    );
+
+    m_bpf_wrapper.attach_kprobe(
+        "kretprobe_tcp_v6_connect",
+        "tcp_v6_connect",
+        true
+    );
+
     m_ring_buffer = std::make_shared<bpf_wrapper_ring>(
         m_bpf_wrapper.lookup_map_fd_by_name("g_probe_ipv4_events"),
         std::bind(
@@ -234,6 +246,18 @@ ebpfsnitch_daemon::bpf_reader(
 
     const struct probe_ipv4_event_t *const l_info =
         static_cast<probe_ipv4_event_t *>(p_data);
+
+    if (l_info->m_v6) {
+        m_log->info(
+            "got ipv6 {} {} {} {}",
+            ipv6_to_string(l_info->m_source_address_v6),
+            l_info->m_source_port,
+            ipv6_to_string(l_info->m_destination_address_v6),
+            l_info->m_destination_port
+        );
+
+        return;
+    }
 
     const uint16_t l_source_port      = l_info->m_source_port;
     const uint16_t l_destination_port = ntohs(l_info->m_destination_port);
