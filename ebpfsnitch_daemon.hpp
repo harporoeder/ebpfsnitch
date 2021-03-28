@@ -84,6 +84,7 @@ private:
     std::shared_ptr<spdlog::logger>   m_log;
     const std::optional<std::string>  m_group;
     std::shared_ptr<nfq_wrapper>      m_nfq;
+    std::shared_ptr<nfq_wrapper>      m_nfqv6;
     std::shared_ptr<nfq_wrapper>      m_nfq_incoming;
     process_manager                   m_process_manager;
 

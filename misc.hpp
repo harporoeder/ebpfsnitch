@@ -48,6 +48,12 @@ ip_protocol_to_string(const ip_protocol_t p_protocol);
 ip_protocol_t
 ip_protocol_from_string(const std::string &p_protocol);
 
+// https://github.com/torvalds/linux/blob/master/include/linux/socket.h#L175
+enum class address_family_t : uint16_t {
+    INET  = 2,
+    INET6 = 10
+};
+
 struct probe_ipv4_event_t {
     bool        m_v6;
     void *      m_handle;
@@ -65,11 +71,14 @@ struct probe_ipv4_event_t {
 } __attribute__((packed));
 
 struct nfq_event_t {
+    bool          m_v6;
     uint32_t      m_user_id;
     uint32_t      m_group_id;
     uint32_t      m_source_address;
+    __uint128_t   m_source_address_v6;
     uint16_t      m_source_port;
     uint32_t      m_destination_address;
+    __uint128_t   m_destination_address_v6;
     uint16_t      m_destination_port;
     uint32_t      m_nfq_id;
     uint64_t      m_timestamp;

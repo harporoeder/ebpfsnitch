@@ -10,11 +10,14 @@
 #include <linux/netfilter.h>
 #include <libmnl/libmnl.h>
 
+#include "misc.hpp"
+
 class nfq_wrapper {
 public:
     nfq_wrapper(
         const unsigned int                          p_queue_index,
-        std::function<int(const struct nlmsghdr *)> p_cb
+        std::function<int(const struct nlmsghdr *)> p_cb,
+        const address_family_t                      p_family
     );
 
     ~nfq_wrapper();
