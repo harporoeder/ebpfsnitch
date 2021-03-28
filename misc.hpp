@@ -54,37 +54,6 @@ enum class address_family_t : uint16_t {
     INET6 = 10
 };
 
-struct probe_ipv4_event_t {
-    bool        m_v6;
-    void *      m_handle;
-    bool        m_remove;
-    uint32_t    m_user_id;
-    uint32_t    m_process_id;
-    uint32_t    m_source_address;
-    __uint128_t m_source_address_v6;
-    uint16_t    m_source_port;
-    uint32_t    m_destination_address;
-    __uint128_t m_destination_address_v6;
-    uint16_t    m_destination_port;
-    uint64_t    m_timestamp;
-    uint8_t     m_protocol;
-} __attribute__((packed));
-
-struct nfq_event_t {
-    bool          m_v6;
-    uint32_t      m_user_id;
-    uint32_t      m_group_id;
-    uint32_t      m_source_address;
-    __uint128_t   m_source_address_v6;
-    uint16_t      m_source_port;
-    uint32_t      m_destination_address;
-    __uint128_t   m_destination_address_v6;
-    uint16_t      m_destination_port;
-    uint32_t      m_nfq_id;
-    uint64_t      m_timestamp;
-    ip_protocol_t m_protocol;
-};
-
 std::string
 ipv4_to_string(const uint32_t p_address);
 

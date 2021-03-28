@@ -160,7 +160,8 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
         ::std::bind(
             &ebpfsnitch_daemon::nfq_handler,
             this,
-            std::placeholders::_1
+            std::placeholders::_1,
+            std::placeholders::_2
         ),
         address_family_t::INET
     );
@@ -170,7 +171,8 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
         ::std::bind(
             &ebpfsnitch_daemon::nfq_handler,
             this,
-            std::placeholders::_1
+            std::placeholders::_1,
+            std::placeholders::_2
         ),
         address_family_t::INET6
     );
@@ -180,7 +182,8 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
         ::std::bind(
             &ebpfsnitch_daemon::nfq_handler_incoming,
             this,
-            std::placeholders::_1
+            std::placeholders::_1,
+            std::placeholders::_2
         ),
         address_family_t::INET
     );
@@ -275,18 +278,6 @@ ebpfsnitch_daemon::bpf_reader(
     const struct probe_ipv4_event_t *const l_info =
         static_cast<probe_ipv4_event_t *>(p_data);
 
-    if (l_info->m_v6) {
-        m_log->info(
-            "got ipv6 {} {} {} {}",
-            ipv6_to_string(l_info->m_source_address_v6),
-            l_info->m_source_port,
-            ipv6_to_string(l_info->m_destination_address_v6),
-            ntohs(l_info->m_destination_port)
-        );
-
-        return;
-    }
-
     const uint16_t l_source_port      = l_info->m_source_port;
     const uint16_t l_destination_port = ntohs(l_info->m_destination_port);
 
@@ -328,6 +319,10 @@ ebpfsnitch_daemon::bpf_reader(
         l_destination_address +
         std::to_string(l_destination_port);
 
+    if (l_info->m_v6) {
+        m_log->info("setting key to {}", l_key);
+    }
+
     {
         std::lock_guard<std::mutex> l_guard(m_lock);
 
@@ -349,11 +344,11 @@ ebpfsnitch_daemon::process_associated_event(
 
     if (l_verdict) {
         if (l_verdict.value()) {
-            set_verdict(l_nfq_event.m_nfq_id, NF_ACCEPT);
+            l_nfq_event.m_queue->send_verdict(l_nfq_event.m_nfq_id, NF_ACCEPT);
 
             return true;
         } else {
-            set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
+            l_nfq_event.m_queue->send_verdict(l_nfq_event.m_nfq_id, NF_DROP);
 
             return true;
         }
@@ -394,8 +389,13 @@ ebpfsnitch_daemon::process_nfq_event(
 }
 
 int
-ebpfsnitch_daemon::nfq_handler(const struct nlmsghdr *const p_header)
-{
+ebpfsnitch_daemon::nfq_handler(
+    nfq_wrapper *const           p_queue,
+    const struct nlmsghdr *const p_header
+) {
+    assert(p_queue);
+    assert(p_header);
+
     struct nlattr *l_attributes[NFQA_MAX + 1] = {};
     
     if (nfq_nlmsg_parse(p_header, l_attributes) < 0) {
@@ -428,7 +428,7 @@ ebpfsnitch_daemon::nfq_handler(const struct nlmsghdr *const p_header)
     if (l_payload_length < 24) {
         m_log->error("unknown dropping malformed");
 
-        set_verdict(l_packet_id, NF_DROP);
+        p_queue->send_verdict(l_packet_id, NF_DROP);
 
         return MNL_CB_OK;
     }
@@ -438,6 +438,8 @@ ebpfsnitch_daemon::nfq_handler(const struct nlmsghdr *const p_header)
     if (l_ip_version != 4 && l_ip_version != 6) {
         m_log->warn("got unknown ip protocol version {}", l_ip_version);
 
+        p_queue->send_verdict(l_packet_id, NF_DROP);
+
         return MNL_CB_OK;
     }
 
@@ -446,7 +448,8 @@ ebpfsnitch_daemon::nfq_handler(const struct nlmsghdr *const p_header)
         .m_user_id   = 0,
         .m_group_id  = 0,
         .m_nfq_id    = l_packet_id,
-        .m_timestamp = nanoseconds()
+        .m_timestamp = nanoseconds(),
+        .m_queue     = p_queue
     };
 
     if (l_ip_version == 4) {
@@ -483,8 +486,6 @@ ebpfsnitch_daemon::nfq_handler(const struct nlmsghdr *const p_header)
             ipv6_to_string(l_nfq_event.m_destination_address_v6),
             l_nfq_event.m_destination_port
         );
-
-        return MNL_CB_OK;
     }
 
     process_nfq_event(l_nfq_event, true);
@@ -493,8 +494,13 @@ ebpfsnitch_daemon::nfq_handler(const struct nlmsghdr *const p_header)
 }
 
 int
-ebpfsnitch_daemon::nfq_handler_incoming(const struct nlmsghdr *const p_header)
-{
+ebpfsnitch_daemon::nfq_handler_incoming(
+    nfq_wrapper *const           p_queue,
+    const struct nlmsghdr *const p_header
+) {
+    assert(p_queue);
+    assert(p_header);
+
     struct nlattr *l_attributes[NFQA_MAX + 1] = {};
     
     if (nfq_nlmsg_parse(p_header, l_attributes) < 0) {
@@ -527,7 +533,7 @@ ebpfsnitch_daemon::nfq_handler_incoming(const struct nlmsghdr *const p_header)
     if (l_payload_length < 24) {
         m_log->error("unknown dropping malformed");
 
-        m_nfq_incoming->send_verdict(l_packet_id, NF_DROP);
+        p_queue->send_verdict(l_packet_id, NF_DROP);
 
         return MNL_CB_OK;
     }
@@ -542,6 +548,7 @@ ebpfsnitch_daemon::nfq_handler_incoming(const struct nlmsghdr *const p_header)
     l_nfq_event.m_source_address      = *((uint32_t*) (l_data + 12));
     l_nfq_event.m_destination_address = *((uint32_t*) (l_data + 16));
     l_nfq_event.m_timestamp           = nanoseconds();
+    l_nfq_event.m_queue               = p_queue;
     
     if (l_proto == ip_protocol_t::TCP || l_proto == ip_protocol_t::UDP) {
         l_nfq_event.m_source_port      = ntohs(*((uint16_t*) (l_data + 20)));
@@ -663,10 +670,20 @@ std::shared_ptr<const struct process_info_t>
 ebpfsnitch_daemon::lookup_connection_info(const nfq_event_t &p_event)
 {
     const std::string l_key =
-        ipv4_to_string(p_event.m_source_address) +
-        std::to_string(p_event.m_source_port) +
-        ipv4_to_string(p_event.m_destination_address) +
-        std::to_string(p_event.m_destination_port);
+        !p_event.m_v6 ?
+            ipv4_to_string(p_event.m_source_address) +
+            std::to_string(p_event.m_source_port) +
+            ipv4_to_string(p_event.m_destination_address) +
+            std::to_string(p_event.m_destination_port)
+        :
+            ipv6_to_string(p_event.m_source_address_v6) +
+            std::to_string(p_event.m_source_port) +
+            ipv6_to_string(p_event.m_destination_address_v6) +
+            std::to_string(p_event.m_destination_port);
+
+    if (p_event.m_v6) {
+        m_log->info("looking up key {}", l_key);
+    }
 
     std::lock_guard<std::mutex> l_guard(m_lock);
 
@@ -674,10 +691,16 @@ ebpfsnitch_daemon::lookup_connection_info(const nfq_event_t &p_event)
         return m_mapping[l_key];
     } else {
         const std::string l_key2 =
-            "0.0.0.0" +
-            std::to_string(p_event.m_source_port) +
-            ipv4_to_string(p_event.m_destination_address) +
-            std::to_string(p_event.m_destination_port);
+            !p_event.m_v6 ?
+                "0.0.0.0" +
+                std::to_string(p_event.m_source_port) +
+                ipv4_to_string(p_event.m_destination_address) +
+                std::to_string(p_event.m_destination_port)
+            :
+                "::" +
+                std::to_string(p_event.m_source_port) +
+                ipv6_to_string(p_event.m_destination_address_v6) +
+                std::to_string(p_event.m_destination_port);
         
         if (m_mapping.find(l_key2) != m_mapping.end()) {
             return m_mapping[l_key2];
@@ -993,7 +1016,7 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
         if (!l_info) {
             m_log->error("handle_control has no connection info");
 
-            set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
+            l_nfq_event.m_queue->send_verdict(l_nfq_event.m_nfq_id, NF_DROP);
 
             std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
             m_undecided_packets.pop();
@@ -1064,7 +1087,7 @@ ebpfsnitch_daemon::process_unassociated()
                 );
                 */
 
-                set_verdict(l_nfq_event.m_nfq_id, NF_DROP);
+                l_nfq_event.m_queue->send_verdict(l_nfq_event.m_nfq_id, NF_DROP);
             } else {
                 l_remaining.push(l_nfq_event);    
             }
@@ -1118,14 +1141,6 @@ nfq_event_to_string(const nfq_event_t &p_event)
         " destinationAddress " + ipv4_to_string(p_event.m_destination_address) +
         " destinationPort "    + std::to_string(p_event.m_destination_port) +
         " timestamp "          + std::to_string(p_event.m_timestamp);
-}
-
-void
-ebpfsnitch_daemon::set_verdict(const uint32_t p_id, const uint32_t p_verdict)
-{
-    std::lock_guard<std::mutex> l_guard(m_response_lock);
-
-    m_nfq->send_verdict(p_id, p_verdict);
 }
 
 std::optional<std::string>

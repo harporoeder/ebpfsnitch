@@ -8,9 +8,9 @@
 #include "nfq_wrapper.hpp"
 
 nfq_wrapper::nfq_wrapper(
-    const unsigned int                          p_queue_index,
-    std::function<int(const struct nlmsghdr *)> p_cb,
-    const address_family_t                      p_family
+    const unsigned int                                         p_queue_index,
+    std::function<int(nfq_wrapper *, const struct nlmsghdr *)> p_cb,
+    const address_family_t                                     p_family
 ):
     m_buffer(0xffff + (MNL_SOCKET_BUFFER_SIZE/2)),
     m_cb(p_cb),
@@ -73,11 +73,11 @@ int nfq_wrapper::queue_cb_proxy(
     const struct nlmsghdr *const p_header,
     void *const                  p_context
 ) {
-    class nfq_wrapper *const l_self = (class nfq_wrapper *const)p_context;
+    nfq_wrapper *const l_self = (nfq_wrapper *const)p_context;
 
     assert(l_self != NULL);
 
-    l_self->m_cb(p_header);
+    l_self->m_cb(l_self, p_header);
 
     return 0;
 }
@@ -121,6 +121,8 @@ void
 nfq_wrapper::send_verdict(const uint32_t p_id, const uint32_t p_verdict)
 {
     char l_buffer[MNL_SOCKET_BUFFER_SIZE];
+
+    std::lock_guard<std::mutex> l_guard(m_send_lock);
 
     struct nlmsghdr *l_header = nfq_nlmsg_put(
         l_buffer,
