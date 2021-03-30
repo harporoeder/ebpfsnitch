@@ -82,8 +82,11 @@ dns_parse_question(
         return NULL;
     }
 
-    p_result->m_type  = read_network_u16(p_iter);
-    p_result->m_class = read_network_u16(p_iter + 2);
+    p_result->m_type  =
+        static_cast<dns_resource_record_type>(read_network_u16(p_iter));
+
+    p_result->m_class =
+        static_cast<dns_class>(read_network_u16(p_iter + 2));
 
     return p_iter + 4;
 }
@@ -107,9 +110,14 @@ dns_parse_record(
         return NULL;
     }
 
-    p_result->m_type        = read_network_u16(p_iter);
-    p_result->m_class       = read_network_u16(p_iter + 2);
+    p_result->m_type        =
+        static_cast<dns_resource_record_type>(read_network_u16(p_iter));
+
+    p_result->m_class       =
+        static_cast<dns_class>(read_network_u16(p_iter + 2));
+
     p_result->m_data_length = read_network_u16(p_iter + 8);
+
     p_result->m_data        = p_iter + 10;
 
     p_iter += 10 + p_result->m_data_length;

@@ -142,5 +142,7 @@ private:
 
     std::mutex m_reverse_dns_lock;
     std::unordered_map<uint32_t, std::string> m_reverse_dns;
+    std::unordered_map<__uint128_t, std::string> m_reverse_dns_v6;
     std::optional<std::string> lookup_domain(const uint32_t p_address);
+    std::optional<std::string> lookup_domain_v6(const __uint128_t p_address);
 };

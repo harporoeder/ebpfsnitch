@@ -549,7 +549,7 @@ ebpfsnitch_daemon::nfq_handler_incoming(
     l_nfq_event.m_destination_address = *((uint32_t*) (l_data + 16));
     l_nfq_event.m_timestamp           = nanoseconds();
     l_nfq_event.m_queue               = p_queue;
-    
+
     if (l_proto == ip_protocol_t::TCP || l_proto == ip_protocol_t::UDP) {
         l_nfq_event.m_source_port      = ntohs(*((uint16_t*) (l_data + 20)));
         l_nfq_event.m_destination_port = ntohs(*((uint16_t*) (l_data + 22)));
@@ -632,37 +632,65 @@ ebpfsnitch_daemon::process_dns(
             return;
         }
 
-        if (l_resource.m_type != 1) {
+        if (l_resource.m_type == dns_resource_record_type::A) {
+            if (l_resource.m_data_length != 4) {
+                m_log->warn("record length A expected 4 bytes");
+
+                return;
+            }
+
+            const uint32_t l_address = *((uint32_t *)l_resource.m_data);
+
+            const std::optional l_record_name = dns_decode_qname(
+                p_packet, l_packet_size, l_resource.m_name, true
+            );
+
+            if (!l_record_name) {
+                m_log->warn("dns_decode_qname() for record failed");
+        
+                return;
+            }
+
+            m_log->info(
+                "Got A record for {} {} {}",
+                l_question_name.value(),
+                l_record_name.value(),
+                ipv4_to_string(l_address)
+            );
+
+            std::lock_guard<std::mutex> l_guard(m_reverse_dns_lock);
+            m_reverse_dns[l_address] = l_question_name.value();
+        } else if (l_resource.m_type == dns_resource_record_type::AAAA) {
+            if (l_resource.m_data_length != 16) {
+                m_log->warn("record length AAAA expected 16 bytes");
+
+                return;
+            }
+
+            const __uint128_t l_address = *((__uint128_t *)l_resource.m_data);
+
+            const std::optional l_record_name = dns_decode_qname(
+                p_packet, l_packet_size, l_resource.m_name, true
+            );
+
+            if (!l_record_name) {
+                m_log->warn("dns_decode_qname() for record failed");
+        
+                return;
+            }
+
+            m_log->info(
+                "Got AAAA record for {} {} {}",
+                l_question_name.value(),
+                l_record_name.value(),
+                ipv6_to_string(l_address)
+            );
+
+            std::lock_guard<std::mutex> l_guard(m_reverse_dns_lock);
+            m_reverse_dns_v6[l_address] = l_question_name.value();
+        } else {
             return;
         }
-
-        if (l_resource.m_data_length != 4) {
-            m_log->warn("record length A expected 4 bytes");
-
-            return;
-        }
-
-        const uint32_t l_address = *((uint32_t *)l_resource.m_data);
-
-        const std::optional l_record_name = dns_decode_qname(
-            p_packet, l_packet_size, l_resource.m_name, true
-        );
-
-        if (!l_record_name) {
-            m_log->warn("dns_decode_qname() for record failed");
-    
-            return;
-        }
-
-        m_log->info(
-            "Got A record for {} {} {}",
-            l_question_name.value(),
-            l_record_name.value(),
-            ipv4_to_string(l_address)
-        );
-
-        std::lock_guard<std::mutex> l_guard(m_reverse_dns_lock);
-        m_reverse_dns[l_address] = l_question_name.value();
     }    
 }
 
@@ -1151,6 +1179,20 @@ ebpfsnitch_daemon::lookup_domain(const uint32_t p_address)
     const auto l_iter = m_reverse_dns.find(p_address);
 
     if (l_iter != m_reverse_dns.end()) {
+        return std::optional<std::string>(l_iter->second);
+    } else {
+        return std::nullopt;
+    }
+}
+
+std::optional<std::string>
+ebpfsnitch_daemon::lookup_domain_v6(const __uint128_t p_address)
+{
+    std::lock_guard<std::mutex> l_guard(m_reverse_dns_lock);
+
+    const auto l_iter = m_reverse_dns_v6.find(p_address);
+
+    if (l_iter != m_reverse_dns_v6.end()) {
         return std::optional<std::string>(l_iter->second);
     } else {
         return std::nullopt;

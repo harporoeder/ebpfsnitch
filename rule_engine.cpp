@@ -124,8 +124,9 @@ rule_engine_t::get_verdict(
                     break;
                 }
                 case field_t::destination_address: {
-                    const std::string l_addr =
-                        ipv4_to_string(p_nfq_event.m_destination_address);
+                    const std::string l_addr = p_nfq_event.m_v6
+                        ? ipv6_to_string(p_nfq_event.m_destination_address_v6)
+                        : ipv4_to_string(p_nfq_event.m_destination_address);
 
                     if (l_clause.m_value != l_addr) {
                         l_match = false;
@@ -143,8 +144,9 @@ rule_engine_t::get_verdict(
                     break;
                 }
                 case field_t::source_address: {
-                    const std::string l_addr =
-                        ipv4_to_string(p_nfq_event.m_source_address);
+                    const std::string l_addr = p_nfq_event.m_v6
+                        ? ipv4_to_string(p_nfq_event.m_source_address)
+                        : ipv4_to_string(p_nfq_event.m_source_address);
 
                     if (l_clause.m_value != l_addr) {
                         l_match = false;
