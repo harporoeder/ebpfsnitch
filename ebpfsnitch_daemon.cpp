@@ -538,33 +538,30 @@ ebpfsnitch_daemon::nfq_handler_incoming(
         return MNL_CB_OK;
     }
 
-    const ip_protocol_t l_proto =
-        static_cast<ip_protocol_t>(*((uint8_t*) (l_data + 9)));
+    const uint8_t l_ip_version = (*l_data & 0b11110000) >> 4;
 
-    struct nfq_event_t l_nfq_event;
+    if (l_ip_version != 4 && l_ip_version != 6) {
+        m_log->warn("got unknown ip protocol version {}", l_ip_version);
 
-    l_nfq_event.m_nfq_id              = l_packet_id;
-    l_nfq_event.m_protocol            = l_proto;
-    l_nfq_event.m_source_address      = *((uint32_t*) (l_data + 12));
-    l_nfq_event.m_destination_address = *((uint32_t*) (l_data + 16));
-    l_nfq_event.m_timestamp           = nanoseconds();
-    l_nfq_event.m_queue               = p_queue;
+        p_queue->send_verdict(l_packet_id, NF_DROP);
 
-    if (l_proto == ip_protocol_t::TCP || l_proto == ip_protocol_t::UDP) {
-        l_nfq_event.m_source_port      = ntohs(*((uint16_t*) (l_data + 20)));
-        l_nfq_event.m_destination_port = ntohs(*((uint16_t*) (l_data + 22)));
-    } else {
-        l_nfq_event.m_source_port      = 0;
-        l_nfq_event.m_destination_port = 0;
+        return MNL_CB_OK;
     }
+    
+    const ip_protocol_t l_proto = l_ip_version == 6
+        ? static_cast<ip_protocol_t>(*((uint8_t*) (l_data + 6)))
+        : static_cast<ip_protocol_t>(*((uint8_t*) (l_data + 9)));
 
     if (l_proto == ip_protocol_t::UDP) {
-        if (l_nfq_event.m_source_port == 53) {
-            process_dns(l_data + 28, l_data + l_payload_length);
+        const char *const l_ip_body =
+            (l_ip_version == 6) ? (l_data + 40) : (l_data + 20);
+
+        if (ntohs(*((uint16_t*) l_ip_body)) == 53) {
+            process_dns(l_ip_body, l_data + l_payload_length);
         }
     }
 
-    m_nfq_incoming->send_verdict(l_packet_id, NF_ACCEPT);
+    p_queue->send_verdict(l_packet_id, NF_ACCEPT);
 
     return MNL_CB_OK;
 }
