@@ -1066,21 +1066,47 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
             continue;
         }
 
-        const std::string l_domain =
-            m_dns_cache.lookup_domain_v4(l_nfq_event.m_destination_address)
-                .value_or("");
+        const std::string l_domain = [&]() {
+            if (l_nfq_event.m_v6) {
+                return
+                    m_dns_cache.lookup_domain_v6(
+                        l_nfq_event.m_destination_address_v6
+                    )
+                    .value_or("");
+            } else {
+                return
+                    m_dns_cache.lookup_domain_v4(
+                        l_nfq_event.m_destination_address
+                    )
+                    .value_or("");
+            }
+        }();
+
+        const std::string l_destination_address = [&]() {
+            if (l_nfq_event.m_v6) {
+                return ipv6_to_string(l_nfq_event.m_destination_address_v6);
+            } else {
+                return ipv4_to_string(l_nfq_event.m_destination_address);
+            }
+        }();
+
+        const std::string l_source_address = [&]() {
+            if (l_nfq_event.m_v6) {
+                return ipv6_to_string(l_nfq_event.m_source_address_v6);
+            } else {
+                return ipv4_to_string(l_nfq_event.m_source_address);
+            }
+        }();
 
         const nlohmann::json l_json = {
             { "kind",               "query"                        },
             { "executable",         l_info->m_executable           },
             { "userId",             l_info->m_user_id              },
             { "processId",          l_info->m_process_id           },
-            { "sourceAddress",
-                ipv4_to_string(l_nfq_event.m_source_address)       },
+            { "sourceAddress",      l_source_address               },
             { "sourcePort",         l_nfq_event.m_source_port      },
             { "destinationPort",    l_nfq_event.m_destination_port },
-            { "destinationAddress",
-                ipv4_to_string(l_nfq_event.m_destination_address)  },
+            { "destinationAddress", l_destination_address          },
             { "container",
                 l_info->m_container_id.value_or("")                },
             { "protocol",
