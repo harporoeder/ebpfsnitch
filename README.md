@@ -20,8 +20,8 @@ user interface to self authorize.
 
 ## Features
 
-eBPFSnitch supports filtering all outgoing IPv4 based protocols
-(TCP / UDP / ICMP / etc). Filtering for IPv6 and incoming connections should
+eBPFSnitch supports filtering all outgoing IPv4 / IPv6 based protocols
+(TCP / UDP / ICMP / etc). Filtering incoming connections should
 be supported in the near future.
 
 A core goal of this project is to integrate well with containerized
