@@ -109,6 +109,7 @@ private:
     std::shared_ptr<nfq_wrapper>      m_nfq;
     std::shared_ptr<nfq_wrapper>      m_nfqv6;
     std::shared_ptr<nfq_wrapper>      m_nfq_incoming;
+    std::shared_ptr<nfq_wrapper>      m_nfq_incomingv6;
     process_manager                   m_process_manager;
 
     bool

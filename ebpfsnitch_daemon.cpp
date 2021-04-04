@@ -48,6 +48,8 @@ iptables_raii::iptables_raii(std::shared_ptr<spdlog::logger> p_log):
 
     ::std::system("iptables --append INPUT --jump NFQUEUE --queue-num 1");
 
+    ::std::system("ip6tables --append INPUT --jump NFQUEUE --queue-num 3");
+
     ::std::system(
         "iptables --insert DOCKER-USER "
         "--match conntrack --ctstate NEW,RELATED "
@@ -80,6 +82,8 @@ iptables_raii::remove_rules()
     );
 
     ::std::system("iptables --delete INPUT --jump NFQUEUE --queue-num 1");
+
+    ::std::system("ip6tables --delete INPUT --jump NFQUEUE --queue-num 3");
 
     ::std::system(
         "iptables --delete DOCKER-USER "
@@ -188,6 +192,17 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
         address_family_t::INET
     );
 
+    m_nfq_incomingv6 = std::make_shared<nfq_wrapper>(
+        3,
+        ::std::bind(
+            &ebpfsnitch_daemon::nfq_handler_incoming,
+            this,
+            std::placeholders::_1,
+            std::placeholders::_2
+        ),
+        address_family_t::INET6
+    );
+
     m_iptables_raii = std::make_unique<iptables_raii>(p_log);
 
     m_thread_group.push_back(
@@ -200,6 +215,10 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
 
     m_thread_group.push_back(
         ::std::thread(&ebpfsnitch_daemon::filter_thread, this, m_nfq_incoming)
+    );
+
+    m_thread_group.push_back(
+        ::std::thread(&ebpfsnitch_daemon::filter_thread, this, m_nfq_incomingv6)
     );
 
     m_thread_group.push_back(
