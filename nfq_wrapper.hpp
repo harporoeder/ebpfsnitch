@@ -4,17 +4,21 @@
 #include <vector>
 #include <functional>
 #include <memory>
+#include <mutex>
 
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <libnfnetlink/libnfnetlink.h>
 #include <linux/netfilter.h>
 #include <libmnl/libmnl.h>
 
+#include "misc.hpp"
+
 class nfq_wrapper {
 public:
     nfq_wrapper(
-        const unsigned int                          p_queue_index,
-        std::function<int(const struct nlmsghdr *)> p_cb
+        const unsigned int                                         p_queue_index,
+        std::function<int(nfq_wrapper *, const struct nlmsghdr *)> p_cb,
+        const address_family_t                                     p_family
     );
 
     ~nfq_wrapper();
@@ -40,5 +44,7 @@ private:
         void *const                  p_context
     );
 
-    const std::function<int(const struct nlmsghdr *)> m_cb;
+    const std::function<int(nfq_wrapper *, const struct nlmsghdr *)> m_cb;
+
+    std::mutex m_send_lock;
 };

@@ -8,8 +8,9 @@
 #include "nfq_wrapper.hpp"
 
 nfq_wrapper::nfq_wrapper(
-    const unsigned int                          p_queue_index,
-    std::function<int(const struct nlmsghdr *)> p_cb
+    const unsigned int                                         p_queue_index,
+    std::function<int(nfq_wrapper *, const struct nlmsghdr *)> p_cb,
+    const address_family_t                                     p_family
 ):
     m_buffer(0xffff + (MNL_SOCKET_BUFFER_SIZE/2)),
     m_cb(p_cb),
@@ -32,7 +33,11 @@ nfq_wrapper::nfq_wrapper(
         throw std::runtime_error("nfq_nlmsg_put() failed");
     }
 
-    nfq_nlmsg_cfg_put_cmd(l_header, AF_INET, NFQNL_CFG_CMD_BIND);
+    nfq_nlmsg_cfg_put_cmd(
+        l_header,
+        static_cast<uint16_t>(p_family),
+        NFQNL_CFG_CMD_BIND
+    );
 
     if (mnl_socket_sendto(m_socket.get(), l_header, l_header->nlmsg_len) < 0) {
         throw std::runtime_error("mnl_socket_sendto() failed");
@@ -68,11 +73,11 @@ int nfq_wrapper::queue_cb_proxy(
     const struct nlmsghdr *const p_header,
     void *const                  p_context
 ) {
-    class nfq_wrapper *const l_self = (class nfq_wrapper *const)p_context;
+    nfq_wrapper *const l_self = (nfq_wrapper *const)p_context;
 
     assert(l_self != NULL);
 
-    l_self->m_cb(p_header);
+    l_self->m_cb(l_self, p_header);
 
     return 0;
 }
@@ -91,7 +96,7 @@ nfq_wrapper::step()
             return;
         } else {
             throw std::runtime_error(
-                "mnl_socket_recvfrom()" + std::string(strerror(errno))
+                "mnl_socket_recvfrom() " + std::string(strerror(errno))
             );
         }
     }
@@ -106,7 +111,9 @@ nfq_wrapper::step()
     );
 
     if (l_status2 < 0) {
-        throw std::runtime_error("mnl_cb_run() failed");
+        throw std::runtime_error(
+            "mnl_cb_run() " + std::string(strerror(errno))
+        );
     }
 }
 
@@ -115,6 +122,8 @@ nfq_wrapper::send_verdict(const uint32_t p_id, const uint32_t p_verdict)
 {
     char l_buffer[MNL_SOCKET_BUFFER_SIZE];
 
+    std::lock_guard<std::mutex> l_guard(m_send_lock);
+
     struct nlmsghdr *l_header = nfq_nlmsg_put(
         l_buffer,
         NFQNL_MSG_VERDICT,
@@ -122,7 +131,7 @@ nfq_wrapper::send_verdict(const uint32_t p_id, const uint32_t p_verdict)
     );
 
     if (l_header == NULL) {
-        throw std::runtime_error("nfq_nlmsg_put() failed");
+        throw std::runtime_error("nfq_nlmsg_put()");
     }
 
     nfq_nlmsg_verdict_put(l_header, p_id, p_verdict);

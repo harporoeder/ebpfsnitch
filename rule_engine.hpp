@@ -7,6 +7,7 @@
 
 #include "misc.hpp"
 #include "process_manager.hpp"
+#include "nfq_event.h"
 
 enum class field_t {
     executable,

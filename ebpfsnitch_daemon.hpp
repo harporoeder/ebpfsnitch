@@ -15,6 +15,23 @@
 #include "bpf_wrapper.hpp"
 #include "nfq_wrapper.hpp"
 #include "process_manager.hpp"
+#include "nfq_event.h"
+
+struct probe_ipv4_event_t {
+    bool        m_v6;
+    void *      m_handle;
+    bool        m_remove;
+    uint32_t    m_user_id;
+    uint32_t    m_process_id;
+    uint32_t    m_source_address;
+    __uint128_t m_source_address_v6;
+    uint16_t    m_source_port;
+    uint32_t    m_destination_address;
+    __uint128_t m_destination_address_v6;
+    uint16_t    m_destination_port;
+    uint64_t    m_timestamp;
+    uint8_t     m_protocol;
+} __attribute__((packed));
 
 extern std::condition_variable g_shutdown;
 
@@ -61,10 +78,16 @@ private:
     );
 
     int
-    nfq_handler(const struct nlmsghdr *const p_header);
+    nfq_handler(
+        nfq_wrapper *const           p_queue,
+        const struct nlmsghdr *const p_header
+    );
 
     int
-    nfq_handler_incoming(const struct nlmsghdr *const p_header);
+    nfq_handler_incoming(
+        nfq_wrapper *const           p_queue,
+        const struct nlmsghdr *const p_header
+    );
 
     bool
     process_nfq_event(
@@ -84,7 +107,9 @@ private:
     std::shared_ptr<spdlog::logger>   m_log;
     const std::optional<std::string>  m_group;
     std::shared_ptr<nfq_wrapper>      m_nfq;
+    std::shared_ptr<nfq_wrapper>      m_nfqv6;
     std::shared_ptr<nfq_wrapper>      m_nfq_incoming;
+    std::shared_ptr<nfq_wrapper>      m_nfq_incomingv6;
     process_manager                   m_process_manager;
 
     bool
@@ -108,8 +133,6 @@ private:
 
     std::unique_ptr<iptables_raii> m_iptables_raii;
 
-    void set_verdict(const uint32_t p_id, const uint32_t p_verdict);
-
     std::vector<std::thread> m_thread_group;
 
     void
@@ -120,5 +143,7 @@ private:
 
     std::mutex m_reverse_dns_lock;
     std::unordered_map<uint32_t, std::string> m_reverse_dns;
+    std::unordered_map<__uint128_t, std::string> m_reverse_dns_v6;
     std::optional<std::string> lookup_domain(const uint32_t p_address);
+    std::optional<std::string> lookup_domain_v6(const __uint128_t p_address);
 };
