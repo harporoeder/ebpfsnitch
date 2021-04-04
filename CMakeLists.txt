@@ -61,6 +61,7 @@ add_executable(
     nfq_wrapper.cpp
     dns_parser.cpp
     process_manager.cpp
+    dns_cache.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/probes_compiled.h
 )
 

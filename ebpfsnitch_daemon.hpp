@@ -16,6 +16,7 @@
 #include "nfq_wrapper.hpp"
 #include "process_manager.hpp"
 #include "nfq_event.h"
+#include "dns_cache.hpp"
 
 struct probe_ipv4_event_t {
     bool        m_v6;
@@ -111,6 +112,7 @@ private:
     std::shared_ptr<nfq_wrapper>      m_nfq_incoming;
     std::shared_ptr<nfq_wrapper>      m_nfq_incomingv6;
     process_manager                   m_process_manager;
+    dns_cache                         m_dns_cache;
 
     bool
     process_associated_event(
@@ -140,10 +142,4 @@ private:
         const char *const p_start,
         const char *const p_end
     );
-
-    std::mutex m_reverse_dns_lock;
-    std::unordered_map<uint32_t, std::string> m_reverse_dns;
-    std::unordered_map<__uint128_t, std::string> m_reverse_dns_v6;
-    std::optional<std::string> lookup_domain(const uint32_t p_address);
-    std::optional<std::string> lookup_domain_v6(const __uint128_t p_address);
 };

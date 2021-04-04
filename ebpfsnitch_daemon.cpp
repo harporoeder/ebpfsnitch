@@ -674,8 +674,7 @@ ebpfsnitch_daemon::process_dns(
                 ipv4_to_string(l_address)
             );
 
-            std::lock_guard<std::mutex> l_guard(m_reverse_dns_lock);
-            m_reverse_dns[l_address] = l_question_name.value();
+            m_dns_cache.add_ipv4_mapping(l_address, l_question_name.value());
         } else if (l_resource.m_type == dns_resource_record_type::AAAA) {
             if (l_resource.m_data_length != 16) {
                 m_log->warn("record length AAAA expected 16 bytes");
@@ -702,8 +701,7 @@ ebpfsnitch_daemon::process_dns(
                 ipv6_to_string(l_address)
             );
 
-            std::lock_guard<std::mutex> l_guard(m_reverse_dns_lock);
-            m_reverse_dns_v6[l_address] = l_question_name.value();
+            m_dns_cache.add_ipv6_mapping(l_address, l_question_name.value());
         } else {
             return;
         }
@@ -1069,7 +1067,7 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
         }
 
         const std::string l_domain =
-            lookup_domain(l_nfq_event.m_destination_address)
+            m_dns_cache.lookup_domain_v4(l_nfq_event.m_destination_address)
                 .value_or("");
 
         const nlohmann::json l_json = {
@@ -1185,32 +1183,4 @@ nfq_event_to_string(const nfq_event_t &p_event)
         " destinationAddress " + ipv4_to_string(p_event.m_destination_address) +
         " destinationPort "    + std::to_string(p_event.m_destination_port) +
         " timestamp "          + std::to_string(p_event.m_timestamp);
-}
-
-std::optional<std::string>
-ebpfsnitch_daemon::lookup_domain(const uint32_t p_address)
-{
-    std::lock_guard<std::mutex> l_guard(m_reverse_dns_lock);
-
-    const auto l_iter = m_reverse_dns.find(p_address);
-
-    if (l_iter != m_reverse_dns.end()) {
-        return std::optional<std::string>(l_iter->second);
-    } else {
-        return std::nullopt;
-    }
-}
-
-std::optional<std::string>
-ebpfsnitch_daemon::lookup_domain_v6(const __uint128_t p_address)
-{
-    std::lock_guard<std::mutex> l_guard(m_reverse_dns_lock);
-
-    const auto l_iter = m_reverse_dns_v6.find(p_address);
-
-    if (l_iter != m_reverse_dns_v6.end()) {
-        return std::optional<std::string>(l_iter->second);
-    } else {
-        return std::nullopt;
-    }
 }
