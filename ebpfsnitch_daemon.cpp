@@ -575,8 +575,10 @@ ebpfsnitch_daemon::nfq_handler_incoming(
         const char *const l_ip_body =
             (l_ip_version == 6) ? (l_data + 40) : (l_data + 20);
 
+        const char *const l_udp_body = l_ip_body + 8;
+
         if (ntohs(*((uint16_t*) l_ip_body)) == 53) {
-            process_dns(l_ip_body, l_data + l_payload_length);
+            process_dns(l_udp_body, l_data + l_payload_length);
         }
     }
 
