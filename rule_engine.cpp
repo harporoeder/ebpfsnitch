@@ -145,7 +145,7 @@ rule_engine_t::get_verdict(
                 }
                 case field_t::source_address: {
                     const std::string l_addr = p_nfq_event.m_v6
-                        ? ipv4_to_string(p_nfq_event.m_source_address)
+                        ? ipv6_to_string(p_nfq_event.m_source_address_v6)
                         : ipv4_to_string(p_nfq_event.m_source_address);
 
                     if (l_clause.m_value != l_addr) {
