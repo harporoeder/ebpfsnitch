@@ -4,6 +4,8 @@
 #include <optional>
 #include <unordered_map>
 
+#include "lru_map.hpp"
+
 class dns_cache {
 public:
     dns_cache();
@@ -23,6 +25,6 @@ public:
 private:
     std::mutex m_lock;
 
-    std::unordered_map<uint32_t, std::string>    m_ipv4_to_domain;
-    std::unordered_map<__uint128_t, std::string> m_ipv6_to_domain;
+    lru_map<uint32_t, std::string>    m_ipv4_to_domain;
+    lru_map<__uint128_t, std::string> m_ipv6_to_domain;
 };

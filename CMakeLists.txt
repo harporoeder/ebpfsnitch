@@ -51,38 +51,39 @@ add_custom_command(
 
 find_package( Boost REQUIRED COMPONENTS container system program_options )
 
-add_executable(
-    ebpfsnitchd
-    main.cpp
-    ebpfsnitch_daemon.cpp
-    rule_engine.cpp
-    misc.cpp
-    bpf_wrapper.cpp
-    nfq_wrapper.cpp
-    dns_parser.cpp
-    process_manager.cpp
-    dns_cache.cpp
-    ${CMAKE_CURRENT_BINARY_DIR}/probes_compiled.h
+add_library(
+    libebpfsnitchd
+    STATIC
+        main.cpp
+        ebpfsnitch_daemon.cpp
+        rule_engine.cpp
+        misc.cpp
+        bpf_wrapper.cpp
+        nfq_wrapper.cpp
+        dns_parser.cpp
+        process_manager.cpp
+        dns_cache.cpp
+        ${CMAKE_CURRENT_BINARY_DIR}/probes_compiled.h
 )
 
 target_compile_options(
-    ebpfsnitchd
-    PRIVATE
+    libebpfsnitchd
+    PUBLIC
         -W
 )
 
-target_compile_definitions(ebpfsnitchd PRIVATE SPDLOG_FMT_EXTERNAL)
+target_compile_definitions(libebpfsnitchd PUBLIC SPDLOG_FMT_EXTERNAL)
 
 target_include_directories(
-    ebpfsnitchd
-    PRIVATE
+    libebpfsnitchd
+    PUBLIC
         ${Boost_INCLUDE_DIRS}
         ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 target_link_libraries(
-    ebpfsnitchd
-    PRIVATE
+    libebpfsnitchd
+    PUBLIC
         bpf
         netfilter_queue
         pthread
@@ -93,9 +94,31 @@ target_link_libraries(
         ${Boost_LIBRARIES}
 )
 
+add_executable(
+    ebpfsnitchd
+    main.cpp
+)
+
+target_link_libraries(
+    ebpfsnitchd
+    libebpfsnitchd
+)
+
 install(
     TARGETS
         ebpfsnitchd
     DESTINATION
         ${CMAKE_INSTALL_PREFIX}
 )
+
+# test targets -----------------------------------------------------------------
+
+enable_testing()
+
+add_executable(lru_map_test tests/lru_map_test.cpp)
+
+target_link_libraries(lru_map_test PRIVATE libebpfsnitchd)
+
+target_include_directories(lru_map_test PRIVATE ${CMAKE_SOURCE_DIR})
+
+add_test(lru_map_test lru_map_test)
