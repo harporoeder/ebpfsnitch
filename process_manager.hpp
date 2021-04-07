@@ -7,9 +7,10 @@
 #include <mutex>
 #include <regex>
 #include <thread>
-#include <atomic>
 
 #include <spdlog/spdlog.h>
+
+#include "stopper.hpp"
 
 struct process_info_t {
     uint32_t                   m_process_id;
@@ -50,6 +51,6 @@ private:
     reaper_thread();
 
     std::shared_ptr<spdlog::logger> m_log;
-    std::atomic<bool>               m_shutdown;
+    stopper                         m_stopper;
     std::thread                     m_thread;
 };

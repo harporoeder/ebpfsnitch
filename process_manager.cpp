@@ -13,13 +13,12 @@
 process_manager::process_manager(std::shared_ptr<spdlog::logger> p_log):
     m_docker_regex(".*/docker/(\\w+)\n"),
     m_log(p_log),
-    m_shutdown(false),
     m_thread(&process_manager::reaper_thread, this)
 {}
 
 process_manager::~process_manager()
 {
-    m_shutdown.store(true);
+    m_stopper.stop();
 
     m_thread.join();
 }
@@ -166,9 +165,7 @@ process_manager::reap_dead()
 void
 process_manager::reaper_thread()
 {
-    while (!m_shutdown.load()) {
+    while (!m_stopper.await_stop_for_milliseconds(1000)) {
         reap_dead();
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
 }

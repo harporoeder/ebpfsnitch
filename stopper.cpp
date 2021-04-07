@@ -35,3 +35,17 @@ stopper::should_stop()
 
     return m_stop_state;
 }
+
+bool
+stopper::await_stop_for_milliseconds(const unsigned int m_timeout)
+{
+    std::unique_lock<std::mutex> l_guard(m_lock);
+
+    if (m_stop_state == true) {
+        return true;
+    }
+
+    m_condition.wait_for(l_guard, std::chrono::milliseconds(m_timeout));
+
+    return m_stop_state;
+}
