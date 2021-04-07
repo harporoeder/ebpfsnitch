@@ -63,6 +63,7 @@ add_library(
         dns_parser.cpp
         process_manager.cpp
         dns_cache.cpp
+        stopper.cpp
         ${CMAKE_CURRENT_BINARY_DIR}/probes_compiled.h
 )
 

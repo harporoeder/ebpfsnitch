@@ -1,6 +1,3 @@
-#include <fstream>
-#include <mutex>
-#include <condition_variable>
 #include <exception>
 #include <iostream>
 
@@ -13,10 +10,10 @@
 
 #include "ebpfsnitch_daemon.hpp"
 
-std::shared_ptr<spdlog::logger> g_log;
-std::condition_variable         g_shutdown;
-std::mutex                      g_shutdown_mutex;
+std::shared_ptr<spdlog::logger>    g_log;
+std::unique_ptr<ebpfsnitch_daemon> g_daemon;
 
+/*
 static void
 trace_ebpf()
 {
@@ -31,15 +28,14 @@ trace_ebpf()
         }
     }
 }
+*/
 
 static void
-signal_handler(const int p_sig)
+signal_stop(const int p_sig)
 {
-    (void)p_sig;
+    g_log->info("signal_stop {}", p_sig);
 
-    g_log->info("signal_handler");
-
-    g_shutdown.notify_all();
+    g_daemon->shutdown();
 }
 
 static void
@@ -135,24 +131,22 @@ main(const int p_argc, const char** p_argv)
             }
         }();
 
-        signal(SIGINT, signal_handler);
-        signal(SIGTERM, signal_handler); 
         signal(SIGPIPE, signal_pipe);
 
         set_limits();
 
-        const auto l_daemon = std::make_shared<ebpfsnitch_daemon>(
+        g_daemon = std::make_unique<ebpfsnitch_daemon>(
             g_log,
             l_group,
             l_rules_path
         );
 
-        std::unique_lock<std::mutex> l_lock(g_shutdown_mutex);
-        g_shutdown.wait(l_lock);
+        signal(SIGINT, signal_stop);
+        signal(SIGTERM, signal_stop); 
 
-        g_log->info("post g_shutdown condition");
+        g_daemon->await_shutdown();
     } catch (const std::exception &p_error) {
-        g_log->error("exception: {}", p_error.what());
+        g_log->error("main() exception: {}", p_error.what());
 
         return 1;
     }

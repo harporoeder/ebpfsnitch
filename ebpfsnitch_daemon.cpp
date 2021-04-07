@@ -100,7 +100,6 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
     m_rule_engine(p_rules_path.value_or("rules.json")),
     m_log(p_log),
     m_group(p_group),
-    m_shutdown(false),
     m_bpf_wrapper(
         p_log,
         std::string(
@@ -232,9 +231,9 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
 
 ebpfsnitch_daemon::~ebpfsnitch_daemon()
 {
-    m_log->trace("ebpfsnitch_daemon destructor");;
+    m_log->trace("ebpfsnitch_daemon destructor");
 
-    m_shutdown.store(true);
+    shutdown();
 
     for (auto &l_thread : m_thread_group) {
         l_thread.join();
@@ -254,7 +253,7 @@ ebpfsnitch_daemon::filter_thread(std::shared_ptr<nfq_wrapper> p_nfq)
     l_poll_fd.events = POLLIN;
 
     while (true) {
-        if (m_shutdown.load()) {
+        if (m_stopper.should_stop()) {
             break;
         }
 
@@ -279,7 +278,7 @@ ebpfsnitch_daemon::probe_thread()
 {
     m_log->trace("ebpfsnitch_daemon::probe_thread() entry");
 
-    while (!m_shutdown.load()) {
+    while (!m_stopper.should_stop()) {
         m_ring_buffer->poll(100);
     }
 
@@ -813,7 +812,7 @@ ebpfsnitch_daemon::control_thread()
         l_poll_fd.events = POLLIN;
 
         while (true) {
-            if (m_shutdown.load()) {
+            if (m_stopper.should_stop()) {
                 break;
             }
             
@@ -855,7 +854,7 @@ ebpfsnitch_daemon::control_thread()
     } catch (...) {
         m_log->error("ebpfsnitch_daemon::control_thread()");
 
-        g_shutdown.notify_all();
+        m_stopper.stop();
     }
 
     m_log->trace("ebpfsnitch_daemon::control_thread() exit");
@@ -975,7 +974,7 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
     l_poll_fd.events = POLLIN;
 
     while (true) {
-        if (m_shutdown.load()) {
+        if (m_stopper.should_stop()) {
             break;
         }
 
@@ -1211,4 +1210,18 @@ nfq_event_to_string(const nfq_event_t &p_event)
         " destinationAddress " + ipv4_to_string(p_event.m_destination_address) +
         " destinationPort "    + std::to_string(p_event.m_destination_port) +
         " timestamp "          + std::to_string(p_event.m_timestamp);
+}
+
+void
+ebpfsnitch_daemon::await_shutdown()
+{
+    m_stopper.await_stop_block();
+}
+
+void
+ebpfsnitch_daemon::shutdown()
+{
+    m_log->trace("ebpfsnitch_daemon::shutdown");;
+
+    m_stopper.stop();
 }

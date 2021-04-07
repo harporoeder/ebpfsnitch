@@ -6,7 +6,6 @@
 #include <queue>
 #include <optional>
 #include <memory>
-#include <condition_variable>
 
 #include <spdlog/spdlog.h>
 
@@ -17,6 +16,7 @@
 #include "process_manager.hpp"
 #include "nfq_event.h"
 #include "dns_cache.hpp"
+#include "stopper.hpp"
 
 struct probe_ipv4_event_t {
     bool        m_v6;
@@ -33,8 +33,6 @@ struct probe_ipv4_event_t {
     uint64_t    m_timestamp;
     uint8_t     m_protocol;
 } __attribute__((packed));
-
-extern std::condition_variable g_shutdown;
 
 std::string nfq_event_to_string(const nfq_event_t &p_event);
 
@@ -59,6 +57,10 @@ public:
     );
 
     ~ebpfsnitch_daemon();
+
+    void await_shutdown();
+
+    void shutdown();
 
 private:
     rule_engine_t m_rule_engine;
@@ -130,7 +132,7 @@ private:
     std::shared_ptr<const struct process_info_t>
     lookup_connection_info(const nfq_event_t &p_event);
 
-    std::atomic<bool> m_shutdown;
+    stopper            m_stopper;
     bpf_wrapper_object m_bpf_wrapper;
 
     std::unique_ptr<iptables_raii> m_iptables_raii;
