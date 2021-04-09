@@ -17,6 +17,7 @@
 #include <nlohmann/json.hpp>
 #include <exception>
 #include <regex>
+#include <sys/select.h>
 
 #include <fcntl.h> 
 #include <string.h>
@@ -247,27 +248,38 @@ ebpfsnitch_daemon::filter_thread(std::shared_ptr<nfq_wrapper> p_nfq)
 
     char l_buffer[1024 * 64] __attribute__ ((aligned));
 
-    struct pollfd l_poll_fd;
+    fd_set l_fd_set;
 
-    l_poll_fd.fd     = p_nfq->get_fd();
-    l_poll_fd.events = POLLIN;
+    const int l_stop_fd = m_stopper.get_stop_fd();
+    const int l_nfq_fd  = p_nfq->get_fd();
+    const int l_max_fd  = std::max(l_stop_fd, l_nfq_fd);
 
     while (true) {
-        if (m_stopper.should_stop()) {
+        FD_ZERO(&l_fd_set);
+        FD_SET(l_stop_fd, &l_fd_set);
+        FD_SET(l_nfq_fd, &l_fd_set);
+
+        const int l_count = select(
+            l_max_fd + 1,
+            &l_fd_set,
+            NULL,
+            NULL,
+            NULL
+        );
+
+        if (l_count == -1) {
+            m_log->error("probe_thread() select() error");
+
+            break;
+        } else if (FD_ISSET(l_stop_fd, &l_fd_set)) {
+            break;
+        } else if (FD_ISSET(l_nfq_fd, &l_fd_set)) {
+            p_nfq->step();
+        } else {
+            m_log->error("filter_thread() select() unknown fd");
+
             break;
         }
-
-        const int l_ret = poll(&l_poll_fd, 1, 1000);
-
-        if (l_ret < 0) {
-            m_log->error("poll() error {}", strerror(errno));
-
-            break;
-        } else if (l_ret == 0) {
-            continue;
-        }
-
-        p_nfq->step();
     }
 
     m_log->trace("ebpfsnitch_daemon::filter_thread() exit");
@@ -278,8 +290,38 @@ ebpfsnitch_daemon::probe_thread()
 {
     m_log->trace("ebpfsnitch_daemon::probe_thread() entry");
 
-    while (!m_stopper.should_stop()) {
-        m_ring_buffer->poll(100);
+    fd_set l_fd_set;
+
+    const int l_stop_fd = m_stopper.get_stop_fd();
+    const int l_ring_fd = m_ring_buffer->get_fd();
+    const int l_max_fd  = std::max(l_stop_fd, l_ring_fd);
+
+    while (true) {
+        FD_ZERO(&l_fd_set);
+        FD_SET(l_stop_fd, &l_fd_set);
+        FD_SET(l_ring_fd, &l_fd_set);
+
+        const int l_count = select(
+            l_max_fd + 1,
+            &l_fd_set,
+            NULL,
+            NULL,
+            NULL
+        );
+
+        if (l_count == -1) {
+            m_log->error("probe_thread() select() error");
+
+            break;
+        } else if (FD_ISSET(l_stop_fd, &l_fd_set)) {
+            break;
+        } else if (FD_ISSET(l_ring_fd, &l_fd_set)) {
+            m_ring_buffer->consume();
+        } else {
+            m_log->error("probe_thread() select() unknown fd");
+
+            break;
+        }
     }
 
     m_log->trace("ebpfsnitch_daemon::probe_thread() exit");
@@ -807,47 +849,58 @@ ebpfsnitch_daemon::control_thread()
             }
         }
 
-        struct pollfd l_poll_fd;
-        l_poll_fd.fd     = l_fd;
-        l_poll_fd.events = POLLIN;
+        fd_set l_fd_set;
+
+        const int l_stop_fd = m_stopper.get_stop_fd();
+        const int l_max_fd  = std::max(l_stop_fd, l_fd);
 
         while (true) {
-            if (m_stopper.should_stop()) {
-                break;
-            }
-            
-            const int l_ret = poll(&l_poll_fd, 1, 1000);
+            FD_ZERO(&l_fd_set);
+            FD_SET(l_stop_fd, &l_fd_set);
+            FD_SET(l_fd, &l_fd_set);
 
-            if (l_ret < 0) {
-                m_log->error("poll() unix socket error {}", l_ret);
-
-                break;
-            } else if (l_ret == 0) {
-                continue;
-            }
-
-            struct sockaddr_un l_client_address;
-            socklen_t l_client_address_len = sizeof(l_client_address);
-
-            const int l_client_fd = accept(
-                l_fd,
-                (struct sockaddr *)&l_client_address,
-                &l_client_address_len
+            const int l_count = select(
+                l_max_fd + 1,
+                &l_fd_set,
+                NULL,
+                NULL,
+                NULL
             );
 
-            if (l_client_fd < 0) {
-                m_log->error("accept() unix socket error {}", l_client_fd);
+            if (l_count == -1) {
+                m_log->error("probe_thread() select() error");
+
+                break;
+            } else if (FD_ISSET(l_stop_fd, &l_fd_set)) {
+                break;
+            } else if (FD_ISSET(l_fd, &l_fd_set)) {
+                struct sockaddr_un l_client_address;
+                socklen_t l_client_address_len = sizeof(l_client_address);
+
+                const int l_client_fd = accept(
+                    l_fd,
+                    (struct sockaddr *)&l_client_address,
+                    &l_client_address_len
+                );
+
+                if (l_client_fd < 0) {
+                    m_log->error("accept() unix socket error {}", l_client_fd);
+                }
+
+                m_log->info("accept unix socket connection");
+
+                try {
+                    handle_control(l_client_fd);
+                } catch (const std::exception &err) {
+                    m_log->error("handle_control failed {}", err.what());
+                }
+
+                close(l_client_fd);
+            } else {
+                m_log->error("control_thread() select() unknown fd");
+
+                break;
             }
-
-            m_log->info("accept unix socket connection");
-
-            try {
-                handle_control(l_client_fd);
-            } catch (const std::exception &err) {
-                m_log->error("handle_control failed {}", err.what());
-            }
-
-            close(l_client_fd);
         }
 
         close(l_fd);
@@ -950,6 +1003,11 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
     if (fcntl(p_sock, F_SETFL, O_NONBLOCK) == -1) {
         throw std::runtime_error("failed to set O_NONBLOCK");
     }
+
+    fd_set l_fd_set;
+
+    FD_ZERO(&l_fd_set);
+    FD_SET(p_sock, &l_fd_set);
 
     line_reader l_reader(p_sock);
 

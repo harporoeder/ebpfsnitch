@@ -1,8 +1,20 @@
+#include <unistd.h>
+
 #include "stopper.hpp"
 
-stopper::stopper(): m_stop_state(false) {}
+stopper::stopper(): m_stop_state(false)
+{
+    if (pipe(m_pipe_fd) == -1) {
+        throw std::runtime_error("pipe() failed");
+    }
+}
 
-stopper::~stopper(){}
+stopper::~stopper()
+{
+    stop();
+
+    close(m_pipe_fd[0]);
+}
 
 void
 stopper::stop()
@@ -10,7 +22,11 @@ stopper::stop()
     {
         std::unique_lock<std::mutex> l_guard(m_lock);
 
-        m_stop_state = true;
+        if (m_stop_state == false) {
+            m_stop_state = true;
+
+            close(m_pipe_fd[1]);
+        }
     }
 
     m_condition.notify_all();
@@ -48,4 +64,10 @@ stopper::await_stop_for_milliseconds(const unsigned int m_timeout)
     m_condition.wait_for(l_guard, std::chrono::milliseconds(m_timeout));
 
     return m_stop_state;
+}
+
+int
+stopper::get_stop_fd()
+{
+    return m_pipe_fd[0];
 }

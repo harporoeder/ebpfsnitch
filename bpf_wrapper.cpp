@@ -16,6 +16,10 @@ public:
 
     void poll(const int p_timeout_ms);
 
+    void consume();
+
+    int get_fd();
+
 private:
     struct ring_buffer *m_ring;
 
@@ -60,6 +64,20 @@ bpf_wrapper_ring::impl::poll(const int p_timeout_ms)
     }
 }
 
+void
+bpf_wrapper_ring::impl::consume()
+{
+    if (ring_buffer__consume(m_ring) < 0) {
+        throw std::runtime_error("ring_buffer__consume() failed");
+    }
+}
+
+int
+bpf_wrapper_ring::impl::get_fd()
+{
+    return ring_buffer__epoll_fd(m_ring);
+}
+
 int
 bpf_wrapper_ring::impl::cb_proxy(
     void *const  p_cb_cookie,
@@ -88,6 +106,18 @@ void
 bpf_wrapper_ring::poll(const int p_timeout_ms)
 {
     m_impl->poll(p_timeout_ms);
+}
+
+void
+bpf_wrapper_ring::consume()
+{
+    m_impl->consume();
+}
+
+int
+bpf_wrapper_ring::get_fd()
+{
+    return m_impl->get_fd();
 }
 
 class bpf_wrapper_object::impl {

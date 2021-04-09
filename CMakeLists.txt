@@ -117,9 +117,11 @@ install(
 enable_testing()
 
 add_executable(lru_map_test tests/lru_map_test.cpp)
-
 target_link_libraries(lru_map_test PRIVATE libebpfsnitchd)
-
 target_include_directories(lru_map_test PRIVATE ${CMAKE_SOURCE_DIR})
-
 add_test(lru_map_test lru_map_test)
+
+add_executable(stopper_test tests/stopper_test.cpp)
+target_link_libraries(stopper_test PRIVATE libebpfsnitchd)
+target_include_directories(stopper_test PRIVATE ${CMAKE_SOURCE_DIR})
+add_test(stopper_test stopper_test)

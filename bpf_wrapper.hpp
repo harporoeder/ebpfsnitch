@@ -16,6 +16,10 @@ public:
 
     void poll(const int p_timeout_ms);
 
+    void consume();
+
+    int get_fd();
+
 private:
     class impl;
 
