@@ -54,7 +54,6 @@ find_package( Boost REQUIRED COMPONENTS container system program_options )
 add_library(
     libebpfsnitchd
     STATIC
-        main.cpp
         ebpfsnitch_daemon.cpp
         rule_engine.cpp
         misc.cpp

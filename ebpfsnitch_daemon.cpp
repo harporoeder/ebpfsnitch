@@ -246,41 +246,47 @@ ebpfsnitch_daemon::filter_thread(std::shared_ptr<nfq_wrapper> p_nfq)
 {
     m_log->trace("ebpfsnitch_daemon::filter_thread() entry");
 
-    char l_buffer[1024 * 64] __attribute__ ((aligned));
+    try {
+        char l_buffer[1024 * 64] __attribute__ ((aligned));
 
-    fd_set l_fd_set;
+        fd_set l_fd_set;
 
-    const int l_stop_fd = m_stopper.get_stop_fd();
-    const int l_nfq_fd  = p_nfq->get_fd();
-    const int l_max_fd  = std::max(l_stop_fd, l_nfq_fd);
+        const int l_stop_fd = m_stopper.get_stop_fd();
+        const int l_nfq_fd  = p_nfq->get_fd();
+        const int l_max_fd  = std::max(l_stop_fd, l_nfq_fd);
 
-    while (true) {
-        FD_ZERO(&l_fd_set);
-        FD_SET(l_stop_fd, &l_fd_set);
-        FD_SET(l_nfq_fd, &l_fd_set);
+        while (true) {
+            FD_ZERO(&l_fd_set);
+            FD_SET(l_stop_fd, &l_fd_set);
+            FD_SET(l_nfq_fd, &l_fd_set);
 
-        const int l_count = select(
-            l_max_fd + 1,
-            &l_fd_set,
-            NULL,
-            NULL,
-            NULL
-        );
+            const int l_count = select(
+                l_max_fd + 1,
+                &l_fd_set,
+                NULL,
+                NULL,
+                NULL
+            );
 
-        if (l_count == -1) {
-            m_log->error("probe_thread() select() error");
+            if (l_count == -1) {
+                m_log->error("probe_thread() select() error");
 
-            break;
-        } else if (FD_ISSET(l_stop_fd, &l_fd_set)) {
-            break;
-        } else if (FD_ISSET(l_nfq_fd, &l_fd_set)) {
-            p_nfq->step();
-        } else {
-            m_log->error("filter_thread() select() unknown fd");
+                break;
+            } else if (FD_ISSET(l_stop_fd, &l_fd_set)) {
+                break;
+            } else if (FD_ISSET(l_nfq_fd, &l_fd_set)) {
+                p_nfq->step();
+            } else {
+                m_log->error("filter_thread() select() unknown fd");
 
-            break;
+                break;
+            }
         }
+    } catch (const std::exception &p_err) {
+        m_log->error("filter_thread() exception {}", p_err.what());
     }
+
+    m_stopper.stop();
 
     m_log->trace("ebpfsnitch_daemon::filter_thread() exit");
 }
@@ -290,39 +296,45 @@ ebpfsnitch_daemon::probe_thread()
 {
     m_log->trace("ebpfsnitch_daemon::probe_thread() entry");
 
-    fd_set l_fd_set;
+    try {
+        fd_set l_fd_set;
 
-    const int l_stop_fd = m_stopper.get_stop_fd();
-    const int l_ring_fd = m_ring_buffer->get_fd();
-    const int l_max_fd  = std::max(l_stop_fd, l_ring_fd);
+        const int l_stop_fd = m_stopper.get_stop_fd();
+        const int l_ring_fd = m_ring_buffer->get_fd();
+        const int l_max_fd  = std::max(l_stop_fd, l_ring_fd);
 
-    while (true) {
-        FD_ZERO(&l_fd_set);
-        FD_SET(l_stop_fd, &l_fd_set);
-        FD_SET(l_ring_fd, &l_fd_set);
+        while (true) {
+            FD_ZERO(&l_fd_set);
+            FD_SET(l_stop_fd, &l_fd_set);
+            FD_SET(l_ring_fd, &l_fd_set);
 
-        const int l_count = select(
-            l_max_fd + 1,
-            &l_fd_set,
-            NULL,
-            NULL,
-            NULL
-        );
+            const int l_count = select(
+                l_max_fd + 1,
+                &l_fd_set,
+                NULL,
+                NULL,
+                NULL
+            );
 
-        if (l_count == -1) {
-            m_log->error("probe_thread() select() error");
+            if (l_count == -1) {
+                m_log->error("probe_thread() select() error");
 
-            break;
-        } else if (FD_ISSET(l_stop_fd, &l_fd_set)) {
-            break;
-        } else if (FD_ISSET(l_ring_fd, &l_fd_set)) {
-            m_ring_buffer->consume();
-        } else {
-            m_log->error("probe_thread() select() unknown fd");
+                break;
+            } else if (FD_ISSET(l_stop_fd, &l_fd_set)) {
+                break;
+            } else if (FD_ISSET(l_ring_fd, &l_fd_set)) {
+                m_ring_buffer->consume();
+            } else {
+                m_log->error("probe_thread() select() unknown fd");
 
-            break;
+                break;
+            }
         }
+    } catch (const std::exception &p_err) {
+        m_log->error("probe_thread() exception {}", p_err.what());
     }
+
+    m_stopper.stop();
 
     m_log->trace("ebpfsnitch_daemon::probe_thread() exit");
 }
