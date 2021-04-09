@@ -118,13 +118,13 @@ nfq_wrapper::step()
 }
 
 void
-nfq_wrapper::send_verdict(const uint32_t p_id, const uint32_t p_verdict)
+nfq_wrapper::send_verdict(const uint32_t p_id, const nfq_verdict_t p_verdict)
 {
     char l_buffer[MNL_SOCKET_BUFFER_SIZE];
 
     std::lock_guard<std::mutex> l_guard(m_send_lock);
 
-    struct nlmsghdr *l_header = nfq_nlmsg_put(
+    struct nlmsghdr *const l_header = nfq_nlmsg_put(
         l_buffer,
         NFQNL_MSG_VERDICT,
         m_queue_index
@@ -134,7 +134,7 @@ nfq_wrapper::send_verdict(const uint32_t p_id, const uint32_t p_verdict)
         throw std::runtime_error("nfq_nlmsg_put()");
     }
 
-    nfq_nlmsg_verdict_put(l_header, p_id, p_verdict);
+    nfq_nlmsg_verdict_put(l_header, p_id, static_cast<int>(p_verdict));
 
     if (mnl_socket_sendto(m_socket.get(), l_header, l_header->nlmsg_len) < 0) {
         throw std::runtime_error("mnl_socket_sendto() failed");

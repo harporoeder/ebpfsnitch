@@ -13,6 +13,16 @@
 
 #include "misc.hpp"
 
+// https://elixir.bootlin.com/linux/v4.4/source/include/uapi/linux/netfilter.h
+enum class nfq_verdict_t : int {
+    DROP   = 0,
+    ACCEPT = 1,
+    STOLEN = 2,
+    QUEUE  = 3,
+    REPEAT = 4,
+    STOP   = 5
+};
+
 class nfq_wrapper {
 public:
     nfq_wrapper(
@@ -27,7 +37,7 @@ public:
 
     void step();
 
-    void send_verdict(const uint32_t p_id, const uint32_t p_verdict);
+    void send_verdict(const uint32_t p_id, const nfq_verdict_t p_verdict);
 
 private:
     std::vector<char> m_buffer;

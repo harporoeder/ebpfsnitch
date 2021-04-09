@@ -410,11 +410,17 @@ ebpfsnitch_daemon::process_associated_event(
 
     if (l_verdict) {
         if (l_verdict.value()) {
-            l_nfq_event.m_queue->send_verdict(l_nfq_event.m_nfq_id, NF_ACCEPT);
+            l_nfq_event.m_queue->send_verdict(
+                l_nfq_event.m_nfq_id,
+                nfq_verdict_t::ACCEPT
+            );
 
             return true;
         } else {
-            l_nfq_event.m_queue->send_verdict(l_nfq_event.m_nfq_id, NF_DROP);
+            l_nfq_event.m_queue->send_verdict(
+                l_nfq_event.m_nfq_id,
+                nfq_verdict_t::DROP
+            );
 
             return true;
         }
@@ -494,7 +500,7 @@ ebpfsnitch_daemon::nfq_handler(
     if (l_payload_length < 24) {
         m_log->error("unknown dropping malformed");
 
-        p_queue->send_verdict(l_packet_id, NF_DROP);
+        p_queue->send_verdict(l_packet_id, nfq_verdict_t::DROP);
 
         return MNL_CB_OK;
     }
@@ -504,7 +510,7 @@ ebpfsnitch_daemon::nfq_handler(
     if (l_ip_version != 4 && l_ip_version != 6) {
         m_log->warn("got unknown ip protocol version {}", l_ip_version);
 
-        p_queue->send_verdict(l_packet_id, NF_DROP);
+        p_queue->send_verdict(l_packet_id, nfq_verdict_t::DROP);
 
         return MNL_CB_OK;
     }
@@ -599,7 +605,7 @@ ebpfsnitch_daemon::nfq_handler_incoming(
     if (l_payload_length < 24) {
         m_log->error("unknown dropping malformed");
 
-        p_queue->send_verdict(l_packet_id, NF_DROP);
+        p_queue->send_verdict(l_packet_id, nfq_verdict_t::DROP);
 
         return MNL_CB_OK;
     }
@@ -609,7 +615,7 @@ ebpfsnitch_daemon::nfq_handler_incoming(
     if (l_ip_version != 4 && l_ip_version != 6) {
         m_log->warn("got unknown ip protocol version {}", l_ip_version);
 
-        p_queue->send_verdict(l_packet_id, NF_DROP);
+        p_queue->send_verdict(l_packet_id, nfq_verdict_t::DROP);
 
         return MNL_CB_OK;
     }
@@ -629,7 +635,7 @@ ebpfsnitch_daemon::nfq_handler_incoming(
         }
     }
 
-    p_queue->send_verdict(l_packet_id, NF_ACCEPT);
+    p_queue->send_verdict(l_packet_id, nfq_verdict_t::ACCEPT);
 
     return MNL_CB_OK;
 }
@@ -1123,7 +1129,10 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
         if (!l_info) {
             m_log->error("handle_control has no connection info");
 
-            l_nfq_event.m_queue->send_verdict(l_nfq_event.m_nfq_id, NF_DROP);
+            l_nfq_event.m_queue->send_verdict(
+                l_nfq_event.m_nfq_id,
+                nfq_verdict_t::DROP
+            );
 
             std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
             m_undecided_packets.pop();
@@ -1220,7 +1229,10 @@ ebpfsnitch_daemon::process_unassociated()
                 );
                 */
 
-                l_nfq_event.m_queue->send_verdict(l_nfq_event.m_nfq_id, NF_DROP);
+                l_nfq_event.m_queue->send_verdict(
+                    l_nfq_event.m_nfq_id,
+                    nfq_verdict_t::DROP
+                );
             } else {
                 l_remaining.push(l_nfq_event);    
             }
