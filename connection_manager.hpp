@@ -4,10 +4,13 @@
 #include <unordered_map>
 #include <mutex>
 #include <array>
+#include <chrono>
+#include <thread>
 
 #include "process_manager.hpp"
 #include "nfq_event.h"
 #include "probe_event.hpp"
+#include "stopper.hpp"
 
 class connection_manager {
 public:
@@ -35,8 +38,16 @@ public:
     );
 
 private:
-    std::mutex m_lock;
+    void reap();
+    void reaper_thread();
 
-    std::unordered_map<std::string, std::shared_ptr<const process_info_t>>
-        m_mapping;
+    struct item_t {
+        std::chrono::time_point<std::chrono::steady_clock> m_last_active;
+        std::shared_ptr<const process_info_t>              m_process;
+    };
+
+    std::thread                             m_thread;
+    stopper                                 m_stopper;
+    std::mutex                              m_lock;
+    std::unordered_map<std::string, item_t> m_mapping;
 };

@@ -31,13 +31,13 @@ iptables_raii::iptables_raii(std::shared_ptr<spdlog::logger> p_log):
 
     ::std::system(
         "iptables --append OUTPUT --table mangle --match conntrack "
-        "--ctstate NEW,RELATED "
+        "--ctstate NEW,RELATED,ESTABLISHED "
         "--jump NFQUEUE --queue-num 0"
     );
 
     ::std::system(
         "ip6tables --append OUTPUT --table mangle --match conntrack "
-        "--ctstate NEW,RELATED "
+        "--ctstate NEW,RELATED,ESTABLISHED "
         "--jump NFQUEUE --queue-num 2"
     );
 
@@ -47,7 +47,7 @@ iptables_raii::iptables_raii(std::shared_ptr<spdlog::logger> p_log):
 
     ::std::system(
         "iptables --insert DOCKER-USER "
-        "--match conntrack --ctstate NEW,RELATED "
+        "--match conntrack --ctstate NEW,RELATED,ESTABLISHED "
         "--jump NFQUEUE --queue-num 0"
     );
 
@@ -66,13 +66,13 @@ iptables_raii::remove_rules()
 {
     ::std::system(
         "iptables --delete OUTPUT --table mangle --match conntrack "
-        "--ctstate NEW,RELATED "
+        "--ctstate NEW,RELATED,ESTABLISHED "
         "--jump NFQUEUE --queue-num 0"
     );
 
     ::std::system(
         "ip6tables --delete OUTPUT --table mangle --match conntrack "
-        "--ctstate NEW,RELATED "
+        "--ctstate NEW,RELATED,ESTABLISHED "
         "--jump NFQUEUE --queue-num 2"
     );
 
@@ -82,7 +82,7 @@ iptables_raii::remove_rules()
 
     ::std::system(
         "iptables --delete DOCKER-USER "
-        "--match conntrack --ctstate NEW,RELATED "
+        "--match conntrack --ctstate NEW,RELATED,ESTABLISHED "
         "--jump NFQUEUE --queue-num 0"
     );
 }

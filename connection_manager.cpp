@@ -2,9 +2,16 @@
 
 #include "connection_manager.hpp"
  
-connection_manager::connection_manager() {}
+connection_manager::connection_manager():
+    m_thread(&connection_manager::reaper_thread, this)
+{}
 
-connection_manager::~connection_manager() {}
+connection_manager::~connection_manager()
+{
+    m_stopper.stop();
+
+    m_thread.join();
+}
 
 std::string
 connection_manager::make_key(
@@ -75,7 +82,9 @@ connection_manager::lookup_connection_info(const nfq_event_t &p_event)
     const auto l_iter = m_mapping.find(l_key);
 
     if (l_iter != m_mapping.end()) {
-        return l_iter->second;
+        l_iter->second.m_last_active = std::chrono::steady_clock::now();
+
+        return l_iter->second.m_process;
     } else {
         const std::string l_key2 = make_key(
             p_event.m_protocol,
@@ -89,7 +98,9 @@ connection_manager::lookup_connection_info(const nfq_event_t &p_event)
         const auto l_iter2 = m_mapping.find(l_key2);
 
         if (l_iter2 != m_mapping.end()) {
-            return l_iter2->second;
+            l_iter2->second.m_last_active = std::chrono::steady_clock::now();
+
+            return l_iter2->second.m_process;
         } else {
             return nullptr;
         }
@@ -118,5 +129,29 @@ connection_manager::add_connection_info(
 
     std::lock_guard<std::mutex> l_guard(m_lock);
 
-    m_mapping[l_key] = p_process;
+    m_mapping[l_key] = item_t{
+        .m_last_active = std::chrono::steady_clock::now(),
+        .m_process     = p_process
+    };
+}
+
+void
+connection_manager::reap()
+{
+    const auto l_now = std::chrono::steady_clock::now();
+
+    std::lock_guard<std::mutex> l_guard(m_lock);
+
+    const auto l_count = std::erase_if(m_mapping, [&](const auto &l_iter) {
+        return (l_now - l_iter.second.m_last_active) >
+            std::chrono::seconds{60 * 5};
+    }); 
+}
+
+void
+connection_manager::reaper_thread()
+{
+    while (!m_stopper.await_stop_for_milliseconds(1000)) {
+        reap();
+    }
 }
