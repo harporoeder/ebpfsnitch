@@ -15,9 +15,9 @@ public:
         const auto l_iterator = m_map.find(p_key);
 
         if (l_iterator != m_map.end()) {
-            m_list.erase(l_iterator->second);
-            m_list.push_front(*l_iterator->second);
             l_iterator->second->second = p_value;
+
+            m_list.splice(m_list.begin(), m_list, l_iterator->second);
         } else {
             m_list.push_front(std::pair<key_t, value_t>{p_key, p_value});
             m_map[p_key] = m_list.begin();
