@@ -17,22 +17,8 @@
 #include "nfq_event.h"
 #include "dns_cache.hpp"
 #include "stopper.hpp"
-
-struct probe_ipv4_event_t {
-    bool        m_v6;
-    void *      m_handle;
-    bool        m_remove;
-    uint32_t    m_user_id;
-    uint32_t    m_process_id;
-    uint32_t    m_source_address;
-    __uint128_t m_source_address_v6;
-    uint16_t    m_source_port;
-    uint32_t    m_destination_address;
-    __uint128_t m_destination_address_v6;
-    uint16_t    m_destination_port;
-    uint64_t    m_timestamp;
-    uint8_t     m_protocol;
-} __attribute__((packed));
+#include "probe_event.hpp"
+#include "connection_manager.hpp"
 
 std::string nfq_event_to_string(const nfq_event_t &p_event);
 
@@ -115,22 +101,13 @@ private:
     std::shared_ptr<nfq_wrapper>      m_nfq_incomingv6;
     process_manager                   m_process_manager;
     dns_cache                         m_dns_cache;
+    connection_manager                m_connection_manager;
 
     bool
     process_associated_event(
         const struct nfq_event_t    &l_nfq_event,
         const struct process_info_t &l_info
     );
-
-    std::mutex m_lock;
-
-    std::unordered_map<
-        std::string,
-        std::shared_ptr<const struct process_info_t>
-    > m_mapping;
-
-    std::shared_ptr<const struct process_info_t>
-    lookup_connection_info(const nfq_event_t &p_event);
 
     stopper            m_stopper;
     bpf_wrapper_object m_bpf_wrapper;

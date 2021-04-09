@@ -63,6 +63,7 @@ add_library(
         process_manager.cpp
         dns_cache.cpp
         stopper.cpp
+        connection_manager.cpp
         ${CMAKE_CURRENT_BINARY_DIR}/probes_compiled.h
 )
 
@@ -86,6 +87,7 @@ target_link_libraries(
     PUBLIC
         bpf
         netfilter_queue
+        netfilter_conntrack
         pthread
         spdlog
         fmt

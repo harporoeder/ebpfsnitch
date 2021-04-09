@@ -344,25 +344,6 @@ ebpfsnitch_daemon::bpf_reader(
     const struct probe_ipv4_event_t *const l_info =
         static_cast<probe_ipv4_event_t *>(p_data);
 
-    const uint16_t l_source_port      = l_info->m_source_port;
-    const uint16_t l_destination_port = ntohs(l_info->m_destination_port);
-
-    const std::string l_destination_address = [&]() {
-        if (l_info->m_v6) {
-            return ipv6_to_string(l_info->m_destination_address_v6);
-        } else {
-            return ipv4_to_string(l_info->m_destination_address);
-        }
-    }();
-
-    const std::string l_source_address = [&]() {
-        if (l_info->m_v6) {
-            return ipv6_to_string(l_info->m_source_address_v6);
-        } else {
-            return ipv4_to_string(l_info->m_source_address);
-        }
-    }();
-
     const std::shared_ptr<const process_info_t> l_process_info =
         m_process_manager.lookup_process_info(l_info->m_process_id);
 
@@ -379,21 +360,11 @@ ebpfsnitch_daemon::bpf_reader(
         return;
     }
 
-    const std::string l_key =
-        l_source_address +
-        std::to_string(l_source_port) +
-        l_destination_address +
-        std::to_string(l_destination_port);
+    struct probe_ipv4_event_t l_info2;
+    memcpy(&l_info2, l_info, sizeof(probe_ipv4_event_t));
+    l_info2.m_destination_port = ntohs(l_info->m_destination_port);
 
-    if (l_info->m_v6) {
-        m_log->info("setting key to {}", l_key);
-    }
-
-    {
-        std::lock_guard<std::mutex> l_guard(m_lock);
-
-        m_mapping[l_key] = l_process_info;
-    }
+    m_connection_manager.add_connection_info(l_info2, l_process_info);
 
     process_unassociated();
 }
@@ -435,7 +406,7 @@ ebpfsnitch_daemon::process_nfq_event(
     const bool                p_queue_unassociated
 ) {
     const std::shared_ptr<const struct process_info_t> l_optional_info =
-        lookup_connection_info(l_nfq_event);
+        m_connection_manager.lookup_connection_info(l_nfq_event);
 
     if (l_optional_info) {
         if (process_associated_event(l_nfq_event, *l_optional_info)) {
@@ -763,50 +734,6 @@ ebpfsnitch_daemon::process_dns(
     }    
 }
 
-std::shared_ptr<const struct process_info_t>
-ebpfsnitch_daemon::lookup_connection_info(const nfq_event_t &p_event)
-{
-    const std::string l_key =
-        !p_event.m_v6 ?
-            ipv4_to_string(p_event.m_source_address) +
-            std::to_string(p_event.m_source_port) +
-            ipv4_to_string(p_event.m_destination_address) +
-            std::to_string(p_event.m_destination_port)
-        :
-            ipv6_to_string(p_event.m_source_address_v6) +
-            std::to_string(p_event.m_source_port) +
-            ipv6_to_string(p_event.m_destination_address_v6) +
-            std::to_string(p_event.m_destination_port);
-
-    if (p_event.m_v6) {
-        m_log->info("looking up key {}", l_key);
-    }
-
-    std::lock_guard<std::mutex> l_guard(m_lock);
-
-    if (m_mapping.find(l_key) != m_mapping.end()) {
-        return m_mapping[l_key];
-    } else {
-        const std::string l_key2 =
-            !p_event.m_v6 ?
-                "0.0.0.0" +
-                std::to_string(p_event.m_source_port) +
-                ipv4_to_string(p_event.m_destination_address) +
-                std::to_string(p_event.m_destination_port)
-            :
-                "::" +
-                std::to_string(p_event.m_source_port) +
-                ipv6_to_string(p_event.m_destination_address_v6) +
-                std::to_string(p_event.m_destination_port);
-        
-        if (m_mapping.find(l_key2) != m_mapping.end()) {
-            return m_mapping[l_key2];
-        }
-
-        return nullptr;
-    }
-}
-
 void
 ebpfsnitch_daemon::control_thread()
 {
@@ -1124,7 +1051,7 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
         }
 
         const std::shared_ptr<const struct process_info_t> l_info =
-            lookup_connection_info(l_nfq_event);
+            m_connection_manager.lookup_connection_info(l_nfq_event);
 
         if (!l_info) {
             m_log->error("handle_control has no connection info");
@@ -1209,7 +1136,7 @@ ebpfsnitch_daemon::process_unassociated()
         struct nfq_event_t l_nfq_event = m_unassociated_packets.front(); 
 
         std::shared_ptr<const struct process_info_t> l_info =
-            lookup_connection_info(l_nfq_event);
+            m_connection_manager.lookup_connection_info(l_nfq_event);
 
         if (l_info) {
             if (!process_associated_event(l_nfq_event, *l_info)) {
@@ -1257,7 +1184,7 @@ ebpfsnitch_daemon::process_unhandled()
         struct nfq_event_t l_unhandled = m_undecided_packets.front(); 
 
         const std::shared_ptr<const struct process_info_t> l_info =
-            lookup_connection_info(l_unhandled);
+            m_connection_manager.lookup_connection_info(l_unhandled);
 
         if (l_info) {
             if (!process_associated_event(l_unhandled, *l_info)) {
