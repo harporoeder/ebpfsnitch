@@ -806,31 +806,61 @@ ebpfsnitch_daemon::control_thread()
 }
 
 static void
-writeAll(const int p_sock, const std::string &p_buffer)
-{
-    size_t l_written = 0;
+write_all(
+    const int          p_write_fd,
+    const int          p_stop_fd,
+    const std::string &p_buffer
+) {
+    fd_set l_read_set;
+    fd_set l_write_set;
+
+    const int l_max_fd = std::max(p_stop_fd, p_write_fd);
+    size_t l_written   = 0;
 
     while (true) {
-        const ssize_t l_status = write(
-            p_sock,
-            p_buffer.c_str(),
-            p_buffer.size()
+        FD_ZERO(&l_read_set);
+        FD_ZERO(&l_write_set);
+
+        FD_SET(p_stop_fd, &l_read_set);
+        FD_SET(p_write_fd, &l_write_set);
+
+        const int l_status = select(
+            l_max_fd + 1,
+            &l_read_set,
+            &l_write_set,
+            NULL,
+            NULL
         );
 
-        if (l_status < 0) {
-            if (errno == EWOULDBLOCK || errno == EAGAIN) {
-                continue;
+        if (l_status == -1) {
+            throw std::runtime_error("write_all() select() failed");
+        } else if (FD_ISSET(p_stop_fd, &l_read_set)) {
+            throw std::runtime_error("write_all() select() stopped");
+        } else if (FD_ISSET(p_write_fd, &l_write_set)) {
+            const ssize_t l_wrote = write(
+                p_write_fd,
+                p_buffer.c_str(),
+                p_buffer.size()
+            );
+
+            if (l_wrote < 0) {
+                throw std::runtime_error(
+                    "write_all()" + std::string(strerror(errno))
+                );
+            } else if (l_wrote == 0) {
+                throw std::runtime_error(
+                    "write_all() socket closed"
+                );
             } else {
-                throw std::runtime_error(strerror(errno));
+                l_written += l_wrote;
+
+                if (l_written == p_buffer.size()) {
+                    return;
+                }
             }
-        } else if (l_status == 0) {
-            throw std::runtime_error("write socket closed");
-        }
 
-        l_written += l_status;
-
-        if (l_written == p_buffer.size()) {
-            return;
+        } else {
+            throw std::runtime_error("write_all() select() unknown fd");
         }
     }
 }
@@ -896,10 +926,7 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
         throw std::runtime_error("failed to set O_NONBLOCK");
     }
 
-    fd_set l_fd_set;
-
-    FD_ZERO(&l_fd_set);
-    FD_SET(p_sock, &l_fd_set);
+    const int l_stop_fd = m_stopper.get_stop_fd();
 
     line_reader l_reader(p_sock);
 
@@ -913,8 +940,11 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
             { "rules",  m_rule_engine.rules_to_json() }
         };
 
-        const std::string l_json_serialized = l_json.dump() + "\n";
-        writeAll(p_sock, l_json_serialized);
+        write_all(
+            p_sock,
+            l_stop_fd,
+            l_json.dump() + "\n"
+        );
     }
 
     auto l_last_ping = std::chrono::system_clock::now();
@@ -945,9 +975,11 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
                 { "kind", "ping" }
             };
 
-            const std::string l_json_serialized = l_json.dump() + "\n";
-
-            writeAll(p_sock, l_json_serialized);
+            write_all(
+                p_sock,
+                l_stop_fd,
+                l_json.dump() + "\n"
+            );
 
             l_last_ping = std::chrono::system_clock::now();
         }
@@ -972,9 +1004,11 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
                         { "body", l_verdict }
                     };
 
-                    const std::string l_json_serialized = l_json.dump() + "\n";
-
-                    writeAll(p_sock, l_json_serialized);
+                    write_all(
+                        p_sock,
+                        l_stop_fd,
+                        l_json.dump() + "\n"
+                    );
                 }
 
                 process_unhandled();
@@ -1068,9 +1102,11 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
             { "domain",             l_domain                       }
         };
 
-        const std::string l_json_serialized = l_json.dump() + "\n";
-
-        writeAll(p_sock, l_json_serialized);
+        write_all(
+            p_sock,
+            l_stop_fd,
+            l_json.dump() + "\n"
+        );;
 
         l_awaiting_action = true;
     }
