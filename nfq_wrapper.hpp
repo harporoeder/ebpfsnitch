@@ -5,6 +5,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <span>
 
 #include <libnetfilter_queue/libnetfilter_queue.h>
 #include <libnfnetlink/libnfnetlink.h>
@@ -23,12 +24,25 @@ enum class nfq_verdict_t : int {
     STOP   = 5
 };
 
+// https://www.nftables.org/projects/libmnl/doxygen/html/libmnl_8h_source.html
+enum class nfq_cb_result_t : int {
+    ERROR = -1,
+    STOP  = 0,
+    OK    = 1
+};
+
 class nfq_wrapper {
 public:
+    typedef std::function<nfq_cb_result_t (
+        nfq_wrapper *,
+        uint32_t,
+        const std::span<const std::byte> &
+    )> cb_t;
+
     nfq_wrapper(
-        const unsigned int                                         p_queue_index,
-        std::function<int(nfq_wrapper *, const struct nlmsghdr *)> p_cb,
-        const address_family_t                                     p_family
+        const unsigned int     p_queue_index,
+        cb_t                   p_cb,
+        const address_family_t p_family
     );
 
     ~nfq_wrapper();
@@ -54,7 +68,7 @@ private:
         void *const                  p_context
     );
 
-    const std::function<int(nfq_wrapper *, const struct nlmsghdr *)> m_cb;
+    const cb_t m_cb;
 
     std::mutex m_send_lock;
 };

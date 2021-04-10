@@ -66,16 +66,18 @@ private:
         const int   p_data_size
     );
 
-    int
+    nfq_cb_result_t
     nfq_handler(
-        nfq_wrapper *const           p_queue,
-        const struct nlmsghdr *const p_header
+        nfq_wrapper *const                p_queue,
+        const uint32_t                    p_packet_id,
+        const std::span<const std::byte> &p_packet
     );
 
-    int
+    nfq_cb_result_t
     nfq_handler_incoming(
-        nfq_wrapper *const           p_queue,
-        const struct nlmsghdr *const p_header
+        nfq_wrapper *const                p_queue,
+        const uint32_t                    p_packet_id,
+        const std::span<const std::byte> &p_packet
     );
 
     bool

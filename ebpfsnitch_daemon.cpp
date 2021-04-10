@@ -31,13 +31,13 @@ iptables_raii::iptables_raii(std::shared_ptr<spdlog::logger> p_log):
 
     ::std::system(
         "iptables --append OUTPUT --table mangle --match conntrack "
-        "--ctstate NEW,RELATED,ESTABLISHED "
+        "--ctstate NEW,RELATED "
         "--jump NFQUEUE --queue-num 0"
     );
 
     ::std::system(
         "ip6tables --append OUTPUT --table mangle --match conntrack "
-        "--ctstate NEW,RELATED,ESTABLISHED "
+        "--ctstate NEW,RELATED "
         "--jump NFQUEUE --queue-num 2"
     );
 
@@ -47,7 +47,7 @@ iptables_raii::iptables_raii(std::shared_ptr<spdlog::logger> p_log):
 
     ::std::system(
         "iptables --insert DOCKER-USER "
-        "--match conntrack --ctstate NEW,RELATED,ESTABLISHED "
+        "--match conntrack --ctstate NEW,RELATED "
         "--jump NFQUEUE --queue-num 0"
     );
 
@@ -66,13 +66,13 @@ iptables_raii::remove_rules()
 {
     ::std::system(
         "iptables --delete OUTPUT --table mangle --match conntrack "
-        "--ctstate NEW,RELATED,ESTABLISHED "
+        "--ctstate NEW,RELATED "
         "--jump NFQUEUE --queue-num 0"
     );
 
     ::std::system(
         "ip6tables --delete OUTPUT --table mangle --match conntrack "
-        "--ctstate NEW,RELATED,ESTABLISHED "
+        "--ctstate NEW,RELATED "
         "--jump NFQUEUE --queue-num 2"
     );
 
@@ -82,7 +82,7 @@ iptables_raii::remove_rules()
 
     ::std::system(
         "iptables --delete DOCKER-USER "
-        "--match conntrack --ctstate NEW,RELATED,ESTABLISHED "
+        "--match conntrack --ctstate NEW,RELATED "
         "--jump NFQUEUE --queue-num 0"
     );
 }
@@ -159,7 +159,8 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
             &ebpfsnitch_daemon::nfq_handler,
             this,
             std::placeholders::_1,
-            std::placeholders::_2
+            std::placeholders::_2,
+            std::placeholders::_3
         ),
         address_family_t::INET
     );
@@ -170,7 +171,8 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
             &ebpfsnitch_daemon::nfq_handler,
             this,
             std::placeholders::_1,
-            std::placeholders::_2
+            std::placeholders::_2,
+            std::placeholders::_3
         ),
         address_family_t::INET6
     );
@@ -181,7 +183,8 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
             &ebpfsnitch_daemon::nfq_handler_incoming,
             this,
             std::placeholders::_1,
-            std::placeholders::_2
+            std::placeholders::_2,
+            std::placeholders::_3
         ),
         address_family_t::INET
     );
@@ -192,7 +195,8 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
             &ebpfsnitch_daemon::nfq_handler_incoming,
             this,
             std::placeholders::_1,
-            std::placeholders::_2
+            std::placeholders::_2,
+            std::placeholders::_3
         ),
         address_family_t::INET6
     );
@@ -339,7 +343,7 @@ ebpfsnitch_daemon::bpf_reader(
     const int   p_data_size
 ){
     assert(p_data);
-    (void)p_data_size;
+    assert(p_data_size == sizeof(probe_ipv4_event_t));
 
     const struct probe_ipv4_event_t *const l_info =
         static_cast<probe_ipv4_event_t *>(p_data);
@@ -363,6 +367,17 @@ ebpfsnitch_daemon::bpf_reader(
     struct probe_ipv4_event_t l_info2;
     memcpy(&l_info2, l_info, sizeof(probe_ipv4_event_t));
     l_info2.m_destination_port = ntohs(l_info->m_destination_port);
+
+    /*
+    m_log->trace(
+        "got bpf event {} src {}:{} dst {}:{}",
+        ip_protocol_to_string(static_cast<ip_protocol_t>(l_info2.m_protocol)),
+        ipv4_to_string(l_info2.m_source_address),
+        std::to_string(l_info2.m_source_port),
+        ipv4_to_string(l_info2.m_destination_address),
+        std::to_string(l_info2.m_destination_port)
+    );
+    */
 
     m_connection_manager.add_connection_info(l_info2, l_process_info);
 
@@ -431,49 +446,23 @@ ebpfsnitch_daemon::process_nfq_event(
     return false;
 }
 
-int
+nfq_cb_result_t
 ebpfsnitch_daemon::nfq_handler(
-    nfq_wrapper *const           p_queue,
-    const struct nlmsghdr *const p_header
+    nfq_wrapper *const                p_queue,
+    const uint32_t                    p_packet_id,
+    const std::span<const std::byte> &p_packet
 ) {
     assert(p_queue);
-    assert(p_header);
 
-    struct nlattr *l_attributes[NFQA_MAX + 1] = {};
-    
-    if (nfq_nlmsg_parse(p_header, l_attributes) < 0) {
-        m_log->error("nfq_nlmsg_parse() failed");
-
-        return MNL_CB_ERROR;
-    }
-
-    if (l_attributes[NFQA_PACKET_HDR] == NULL) {
-        m_log->error("l_attributes[NFQA_PACKET_HDR] failed");
-
-        return MNL_CB_ERROR;
-    }
-
-    struct nfgenmsg *const l_nfgen_message = (struct nfgenmsg *)
-        mnl_nlmsg_get_payload(p_header);
-
-    struct nfqnl_msg_packet_hdr *const l_packet_header =
-        (struct nfqnl_msg_packet_hdr *)
-        mnl_attr_get_payload(l_attributes[NFQA_PACKET_HDR]);
-
-    const uint16_t l_payload_length =
-        mnl_attr_get_payload_len(l_attributes[NFQA_PAYLOAD]);
-
-    const char *const l_data = (char *)
-        mnl_attr_get_payload(l_attributes[NFQA_PAYLOAD]);
-
-    const uint32_t l_packet_id = ntohl(l_packet_header->packet_id);
+    const uint16_t    l_payload_length = p_packet.size();
+    const char *const l_data           = (char *)p_packet.data();
 
     if (l_payload_length < 24) {
         m_log->error("unknown dropping malformed");
 
-        p_queue->send_verdict(l_packet_id, nfq_verdict_t::DROP);
+        p_queue->send_verdict(p_packet_id, nfq_verdict_t::DROP);
 
-        return MNL_CB_OK;
+        return nfq_cb_result_t::OK;
     }
 
     const uint8_t l_ip_version = (*l_data & 0b11110000) >> 4;
@@ -481,16 +470,16 @@ ebpfsnitch_daemon::nfq_handler(
     if (l_ip_version != 4 && l_ip_version != 6) {
         m_log->warn("got unknown ip protocol version {}", l_ip_version);
 
-        p_queue->send_verdict(l_packet_id, nfq_verdict_t::DROP);
+        p_queue->send_verdict(p_packet_id, nfq_verdict_t::DROP);
 
-        return MNL_CB_OK;
+        return nfq_cb_result_t::OK;
     }
 
     struct nfq_event_t l_nfq_event = {
         .m_v6        = l_ip_version == 6,
         .m_user_id   = 0,
         .m_group_id  = 0,
-        .m_nfq_id    = l_packet_id,
+        .m_nfq_id    = p_packet_id,
         .m_timestamp = nanoseconds(),
         .m_queue     = p_queue
     };
@@ -521,64 +510,28 @@ ebpfsnitch_daemon::nfq_handler(
         l_nfq_event.m_destination_port = 0;
     }
 
-    if (l_ip_version == 6) {
-        m_log->info(
-            "nfq_handler ipv6 [{}]:{} [{}]:{}",
-            ipv6_to_string(l_nfq_event.m_source_address_v6),
-            l_nfq_event.m_source_port,
-            ipv6_to_string(l_nfq_event.m_destination_address_v6),
-            l_nfq_event.m_destination_port
-        );
-    }
-
     process_nfq_event(l_nfq_event, true);
 
-    return MNL_CB_OK;
+    return nfq_cb_result_t::OK;
 }
 
-int
+nfq_cb_result_t
 ebpfsnitch_daemon::nfq_handler_incoming(
-    nfq_wrapper *const           p_queue,
-    const struct nlmsghdr *const p_header
+    nfq_wrapper *const                p_queue,
+    const uint32_t                    p_packet_id,
+    const std::span<const std::byte> &p_packet
 ) {
     assert(p_queue);
-    assert(p_header);
 
-    struct nlattr *l_attributes[NFQA_MAX + 1] = {};
-    
-    if (nfq_nlmsg_parse(p_header, l_attributes) < 0) {
-        m_log->error("nfq_nlmsg_parse() failed");
-
-        return MNL_CB_ERROR;
-    }
-
-    if (l_attributes[NFQA_PACKET_HDR] == NULL) {
-        m_log->error("l_attributes[NFQA_PACKET_HDR] failed");
-
-        return MNL_CB_ERROR;
-    }
-
-    struct nfgenmsg *const l_nfgen_message = (struct nfgenmsg *)
-        mnl_nlmsg_get_payload(p_header);
-
-    struct nfqnl_msg_packet_hdr *const l_packet_header =
-        (struct nfqnl_msg_packet_hdr *)
-        mnl_attr_get_payload(l_attributes[NFQA_PACKET_HDR]);
-
-    const uint16_t l_payload_length =
-        mnl_attr_get_payload_len(l_attributes[NFQA_PAYLOAD]);
-
-    const char *const l_data = (char *)
-        mnl_attr_get_payload(l_attributes[NFQA_PAYLOAD]);
-
-    const uint32_t l_packet_id = ntohl(l_packet_header->packet_id);
+    const uint16_t    l_payload_length = p_packet.size();
+    const char *const l_data           = (char *)p_packet.data();
 
     if (l_payload_length < 24) {
         m_log->error("unknown dropping malformed");
 
-        p_queue->send_verdict(l_packet_id, nfq_verdict_t::DROP);
+        p_queue->send_verdict(p_packet_id, nfq_verdict_t::DROP);
 
-        return MNL_CB_OK;
+        return nfq_cb_result_t::OK;
     }
 
     const uint8_t l_ip_version = (*l_data & 0b11110000) >> 4;
@@ -586,9 +539,9 @@ ebpfsnitch_daemon::nfq_handler_incoming(
     if (l_ip_version != 4 && l_ip_version != 6) {
         m_log->warn("got unknown ip protocol version {}", l_ip_version);
 
-        p_queue->send_verdict(l_packet_id, nfq_verdict_t::DROP);
+        p_queue->send_verdict(p_packet_id, nfq_verdict_t::DROP);
 
-        return MNL_CB_OK;
+        return nfq_cb_result_t::OK;
     }
     
     const ip_protocol_t l_proto = l_ip_version == 6
@@ -606,9 +559,9 @@ ebpfsnitch_daemon::nfq_handler_incoming(
         }
     }
 
-    p_queue->send_verdict(l_packet_id, nfq_verdict_t::ACCEPT);
+    p_queue->send_verdict(p_packet_id, nfq_verdict_t::ACCEPT);
 
-    return MNL_CB_OK;
+    return nfq_cb_result_t::OK;
 }
 
 void
@@ -1149,12 +1102,10 @@ ebpfsnitch_daemon::process_unassociated()
         } else {
             // two seconds
             if (nanoseconds() > (l_nfq_event.m_timestamp + 2000000000 )) {
-                /*
                 m_log->error(
                     "dropping still unassociated {}",
                     nfq_event_to_string(l_nfq_event)
                 );
-                */
 
                 l_nfq_event.m_queue->send_verdict(
                     l_nfq_event.m_nfq_id,
@@ -1206,8 +1157,7 @@ std::string
 nfq_event_to_string(const nfq_event_t &p_event)
 {
     return
-        "userId "              + std::to_string(p_event.m_user_id) +
-        " groupId "            + std::to_string(p_event.m_group_id) +
+        " proto "              + ip_protocol_to_string(p_event.m_protocol) +
         " sourceAddress "      + ipv4_to_string(p_event.m_source_address) +
         " sourcePort "         + std::to_string(p_event.m_source_port) +
         " destinationAddress " + ipv4_to_string(p_event.m_destination_address) +

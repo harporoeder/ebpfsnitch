@@ -8,9 +8,9 @@
 #include "nfq_wrapper.hpp"
 
 nfq_wrapper::nfq_wrapper(
-    const unsigned int                                         p_queue_index,
-    std::function<int(nfq_wrapper *, const struct nlmsghdr *)> p_cb,
-    const address_family_t                                     p_family
+    const unsigned int     p_queue_index,
+    cb_t                   p_cb,
+    const address_family_t p_family
 ):
     m_buffer(0xffff + (MNL_SOCKET_BUFFER_SIZE/2)),
     m_cb(p_cb),
@@ -25,9 +25,11 @@ nfq_wrapper::nfq_wrapper(
         throw std::runtime_error("mnl_socket_bind() failed");
     }
 
-    struct nlmsghdr *l_header;
-
-    l_header = nfq_nlmsg_put(m_buffer.data(), NFQNL_MSG_CONFIG, p_queue_index);
+    struct nlmsghdr *l_header = nfq_nlmsg_put(
+        m_buffer.data(),
+        NFQNL_MSG_CONFIG,
+        p_queue_index
+    );
 
     if (l_header == NULL) {
         throw std::runtime_error("nfq_nlmsg_put() failed");
@@ -69,15 +71,36 @@ nfq_wrapper::get_fd()
     return mnl_socket_get_fd(m_socket.get());
 }
 
-int nfq_wrapper::queue_cb_proxy(
+int
+nfq_wrapper::queue_cb_proxy(
     const struct nlmsghdr *const p_header,
     void *const                  p_context
 ) {
-    nfq_wrapper *const l_self = (nfq_wrapper *const)p_context;
+    nfq_wrapper *const l_self = static_cast<nfq_wrapper *>(p_context);
 
     assert(l_self != NULL);
 
-    l_self->m_cb(l_self, p_header);
+    struct nlattr *l_attributes[NFQA_MAX + 1] = {};
+
+    if (nfq_nlmsg_parse(p_header, l_attributes) < 0) {
+        return MNL_CB_ERROR;
+    }
+
+    struct nfqnl_msg_packet_hdr *const l_packet_header =
+        static_cast<struct nfqnl_msg_packet_hdr *>(
+            mnl_attr_get_payload(l_attributes[NFQA_PACKET_HDR])
+        );
+
+    const std::span<const std::byte> l_payload(
+        static_cast<std::byte *>(
+            mnl_attr_get_payload(l_attributes[NFQA_PAYLOAD])
+        ),
+        mnl_attr_get_payload_len(
+            l_attributes[NFQA_PAYLOAD]
+        )
+    );
+
+    l_self->m_cb(l_self, ntohl(l_packet_header->packet_id), l_payload);
 
     return 0;
 }
