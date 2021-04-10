@@ -140,10 +140,10 @@ public:
     lookup_map_fd_by_name(const std::string &p_name);
 
 private:
+    std::shared_ptr<spdlog::logger> m_log;
+
     const std::unique_ptr<struct bpf_object, void(*)(struct bpf_object *)>
         m_object;
-
-    std::shared_ptr<spdlog::logger> m_log;
 
     std::vector<struct bpf_link *> m_links;
 };

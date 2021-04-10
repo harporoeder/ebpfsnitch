@@ -142,7 +142,7 @@ connection_manager::reap()
 
     std::lock_guard<std::mutex> l_guard(m_lock);
 
-    const auto l_count = std::erase_if(m_mapping, [&](const auto &l_iter) {
+    std::erase_if(m_mapping, [&](const auto &l_iter) {
         return (l_now - l_iter.second.m_last_active) >
             std::chrono::seconds{60 * 5};
     }); 

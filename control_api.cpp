@@ -190,8 +190,8 @@ write_all(
 class line_reader {
 public:
     line_reader(const int p_sock):
-        m_sock(p_sock),
-        m_position(0)
+        m_position(0),
+        m_sock(p_sock)
     {};
 
     std::optional<std::string>

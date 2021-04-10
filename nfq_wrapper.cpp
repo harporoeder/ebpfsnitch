@@ -13,9 +13,9 @@ nfq_wrapper::nfq_wrapper(
     const address_family_t p_family
 ):
     m_buffer(0xffff + (MNL_SOCKET_BUFFER_SIZE/2)),
-    m_cb(p_cb),
     m_socket(mnl_socket_open(NETLINK_NETFILTER), &mnl_socket_close),
-    m_queue_index(p_queue_index)
+    m_queue_index(p_queue_index),
+    m_cb(p_cb)
 {
     if (m_socket == NULL) {
         throw std::runtime_error("mnl_socket_open() failed");

@@ -92,13 +92,13 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
     m_rule_engine(p_rules_path.value_or("rules.json")),
     m_log(p_log),
     m_group(p_group),
+    m_process_manager(p_log),
     m_bpf_wrapper(
         p_log,
         std::string(
             reinterpret_cast<char*>(probes_c_o), sizeof(probes_c_o)
         )
-    ),
-    m_process_manager(p_log)
+    )
 {
     m_log->trace("ebpfsnitch_daemon constructor");
     
@@ -242,8 +242,6 @@ ebpfsnitch_daemon::filter_thread(std::shared_ptr<nfq_wrapper> p_nfq)
     m_log->trace("ebpfsnitch_daemon::filter_thread() entry");
 
     try {
-        char l_buffer[1024 * 64] __attribute__ ((aligned));
-
         fd_set l_fd_set;
 
         const int l_stop_fd = m_stopper.get_stop_fd();

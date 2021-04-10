@@ -144,7 +144,7 @@ process_manager::reap_dead()
 {
     std::lock_guard<std::mutex> l_guard(m_lock);
 
-    const auto l_count = std::erase_if(m_process_cache, 
+    std::erase_if(m_process_cache, 
         [&](const auto &l_process) {
             try {
                 if (
