@@ -64,6 +64,7 @@ add_library(
         dns_cache.cpp
         stopper.cpp
         connection_manager.cpp
+        control_api.cpp
         ${CMAKE_CURRENT_BINARY_DIR}/probes_compiled.h
 )
 
