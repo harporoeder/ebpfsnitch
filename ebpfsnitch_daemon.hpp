@@ -17,7 +17,7 @@
 #include "nfq_event.h"
 #include "dns_cache.hpp"
 #include "stopper.hpp"
-#include "probe_event.hpp"
+#include "ebpf_event.hpp"
 #include "connection_manager.hpp"
 
 std::string nfq_event_to_string(const nfq_event_t &p_event);

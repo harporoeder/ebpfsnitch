@@ -338,10 +338,10 @@ ebpfsnitch_daemon::bpf_reader(
     const int   p_data_size
 ){
     assert(p_data);
-    assert(p_data_size == sizeof(probe_ipv4_event_t));
+    assert(p_data_size == sizeof(ebpf_event_t));
 
-    const struct probe_ipv4_event_t *const l_info =
-        static_cast<probe_ipv4_event_t *>(p_data);
+    const struct ebpf_event_t *const l_info =
+        static_cast<ebpf_event_t *>(p_data);
 
     const std::shared_ptr<const process_info_t> l_process_info =
         m_process_manager.lookup_process_info(l_info->m_process_id);
@@ -359,8 +359,8 @@ ebpfsnitch_daemon::bpf_reader(
         return;
     }
 
-    struct probe_ipv4_event_t l_info2;
-    memcpy(&l_info2, l_info, sizeof(probe_ipv4_event_t));
+    struct ebpf_event_t l_info2;
+    memcpy(&l_info2, l_info, sizeof(ebpf_event_t));
     l_info2.m_destination_port = ntohs(l_info->m_destination_port);
 
     /*

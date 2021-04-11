@@ -8,7 +8,7 @@
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";
 
-struct probe_ipv4_event_t {
+struct ebpf_event_t {
     bool        m_v6;
     void *      m_handle;
     bool        m_remove;
@@ -123,9 +123,9 @@ kretprobe_tcp_v4_connect(const struct pt_regs *const p_context)
         &l_sock->__sk_common.skc_daddr
     );
 
-    struct probe_ipv4_event_t *const l_event = bpf_ringbuf_reserve(
+    struct ebpf_event_t *const l_event = bpf_ringbuf_reserve(
         &g_probe_ipv4_events,
-        sizeof(struct probe_ipv4_event_t),
+        sizeof(struct ebpf_event_t),
         0
     );
 
@@ -231,9 +231,9 @@ kretprobe_tcp_v6_connect(const struct pt_regs *const p_context)
         &l_sock->__sk_common.skc_v6_daddr
     );
 
-    struct probe_ipv4_event_t *const l_event = bpf_ringbuf_reserve(
+    struct ebpf_event_t *const l_event = bpf_ringbuf_reserve(
         &g_probe_ipv4_events,
-        sizeof(struct probe_ipv4_event_t),
+        sizeof(struct ebpf_event_t),
         0
     );
 
@@ -450,9 +450,9 @@ kretprobe_security_socket_send_msg(const struct pt_regs *const p_context_ignore)
         }
     }
     
-    struct probe_ipv4_event_t *const l_event = bpf_ringbuf_reserve(
+    struct ebpf_event_t *const l_event = bpf_ringbuf_reserve(
         &g_probe_ipv4_events,
-        sizeof(struct probe_ipv4_event_t),
+        sizeof(struct ebpf_event_t),
         0
     );
 

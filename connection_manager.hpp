@@ -9,7 +9,7 @@
 
 #include "process_manager.hpp"
 #include "nfq_event.h"
-#include "probe_event.hpp"
+#include "ebpf_event.hpp"
 #include "stopper.hpp"
 
 class connection_manager {
@@ -23,7 +23,7 @@ public:
 
     void
     add_connection_info(
-        const probe_ipv4_event_t &            p_event,
+        const ebpf_event_t &            p_event,
         std::shared_ptr<const process_info_t> p_process
     );
 

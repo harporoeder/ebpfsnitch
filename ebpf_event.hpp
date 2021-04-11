@@ -1,6 +1,6 @@
 #pragma once
 
-struct probe_ipv4_event_t {
+struct ebpf_event_t {
     bool        m_v6;
     void *      m_handle;
     bool        m_remove;
