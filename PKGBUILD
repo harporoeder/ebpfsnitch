@@ -25,7 +25,7 @@ depends=(
 )
 
 source=("https://github.com/harporoeder/ebpfsnitch/archive/refs/tags/$pkgver.tar.gz")
-sha256sums=('079a5fa3903953a09480f136503c5707f1de7e3f7c965609ad9f3d98ce68d050')
+sha256sums=('92d0c1da308ca0f5590f5a8c13dd025687f1279592f2ba27995731d33400c936')
 
 build() {
     cd "$srcdir/ebpfsnitch-$pkgver"
