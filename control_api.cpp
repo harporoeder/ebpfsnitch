@@ -376,21 +376,13 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
             continue;
         }
 
-        const std::string l_domain = [&]() {
-            if (l_nfq_event.m_v6) {
-                return
-                    m_dns_cache.lookup_domain_v6(
-                        l_nfq_event.m_destination_address_v6
-                    )
-                    .value_or("");
-            } else {
-                return
-                    m_dns_cache.lookup_domain_v4(
-                        l_nfq_event.m_destination_address
-                    )
-                    .value_or("");
-            }
-        }();
+        const std::optional<std::string> l_domain = l_nfq_event.m_v6
+            ? m_dns_cache.lookup_domain_v6(
+                l_nfq_event.m_destination_address_v6
+            )
+            : m_dns_cache.lookup_domain_v4(
+                l_nfq_event.m_destination_address
+            );
 
         const std::string l_destination_address = [&]() {
             if (l_nfq_event.m_v6) {
@@ -408,7 +400,7 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
             }
         }();
 
-        const nlohmann::json l_json = {
+        nlohmann::json l_json = {
             { "kind",               "query"                        },
             { "executable",         l_info->m_executable           },
             { "userId",             l_info->m_user_id              },
@@ -417,12 +409,17 @@ ebpfsnitch_daemon::handle_control(const int p_sock)
             { "sourcePort",         l_nfq_event.m_source_port      },
             { "destinationPort",    l_nfq_event.m_destination_port },
             { "destinationAddress", l_destination_address          },
-            { "container",
-                l_info->m_container_id.value_or("")                },
             { "protocol",
-                ip_protocol_to_string(l_nfq_event.m_protocol)      },
-            { "domain",             l_domain                       }
+                ip_protocol_to_string(l_nfq_event.m_protocol)      }
         };
+
+        if (l_domain.has_value()) {
+            l_json["domain"] = l_domain.value();
+        }
+
+        if (l_info->m_container_id.has_value()) {
+            l_json["container"] = l_info->m_container_id.value();
+        }
 
         write_all(
             p_sock,

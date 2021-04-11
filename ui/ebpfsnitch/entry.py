@@ -49,19 +49,24 @@ class PromptDialog(QDialog):
         buttonLayout.addWidget(allowButton)
         buttonLayout.addWidget(denyButton)
 
-        source = question["sourceAddress"]      + ":" + str(question["sourcePort"])
+        source = question["sourceAddress"] + ":" + str(question["sourcePort"])
 
         destination = \
             question["destinationAddress"] + ":" + \
-            str(question["destinationPort"]) + \
-            " (" + question["domain"] + ")"
+            str(question["destinationPort"])
+
+        if "domain" in question:
+            destination += " (" + question["domain"] + ")"
 
         self.layout = QVBoxLayout()
         self.layout.addWidget(QLabel("Application: " + question["executable"]))
         self.layout.addWidget(QLabel("Protocol: " + str(question["protocol"])))
         self.layout.addWidget(QLabel("Source: " + source))
         self.layout.addWidget(QLabel("Destination: " + destination))
-        self.layout.addWidget(QLabel("Container: " + str(question["container"])))
+
+        if "container" in question:
+            self.layout.addWidget(QLabel("Container: " + str(question["container"])))
+
         self.layout.addWidget(QLabel("UID: "  + str(question["userId"])))
         self.layout.addWidget(self.forAllDestinationAddresses)
         self.layout.addWidget(self.forAllDestinationPorts)
