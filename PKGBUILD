@@ -1,8 +1,8 @@
 # Maintainer: Harpo Roeder <roederharpo@protonmail.ch>
 
 pkgname='ebpfsnitch'
-pkgver=0.2.0
-pkgrel=2
+pkgver=0.3.0
+pkgrel=3
 pkgdesc='eBPF based Application Firewall'
 arch=('x86_64')
 license=('BSD3')
@@ -25,7 +25,7 @@ depends=(
 )
 
 source=("https://github.com/harporoeder/ebpfsnitch/archive/refs/tags/$pkgver.tar.gz")
-sha256sums=('0a5f082db00ff1a9fb14f7bd6392e7c9e034999b4fa7b8ec7500205b24a33d22')
+sha256sums=('079a5fa3903953a09480f136503c5707f1de7e3f7c965609ad9f3d98ce68d050')
 
 build() {
     cd "$srcdir/ebpfsnitch-$pkgver"
