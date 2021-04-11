@@ -109,7 +109,7 @@ connection_manager::lookup_connection_info(const nfq_event_t &p_event)
 
 void
 connection_manager::add_connection_info(
-    const ebpf_event_t &            p_event,
+    const ebpf_event_t &                  p_event,
     std::shared_ptr<const process_info_t> p_process
 ) {
     const __uint128_t l_source_address = p_event.m_v6 ?

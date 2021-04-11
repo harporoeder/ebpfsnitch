@@ -23,10 +23,11 @@ public:
 
     void
     add_connection_info(
-        const ebpf_event_t &            p_event,
+        const ebpf_event_t &                  p_event,
         std::shared_ptr<const process_info_t> p_process
     );
 
+private:
     static std::string
     make_key(
         const ip_protocol_t p_protocol,
@@ -37,7 +38,6 @@ public:
         const uint16_t      p_destination_port
     );
 
-private:
     void reap();
     void reaper_thread();
 

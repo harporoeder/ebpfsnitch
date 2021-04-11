@@ -104,7 +104,7 @@ main(const int p_argc, const char** p_argv)
         }
 
         if (l_map.count("version")) {
-            std::cout << "0.2.0" << std::endl;
+            std::cout << "0.3.0" << std::endl;
 
             return 0;
         }
