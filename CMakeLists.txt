@@ -88,7 +88,6 @@ target_link_libraries(
     PUBLIC
         bpf
         netfilter_queue
-        netfilter_conntrack
         pthread
         spdlog
         fmt
