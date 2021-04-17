@@ -92,6 +92,8 @@ private:
     std::mutex m_unassociated_packets_lock;
     void process_unassociated();
 
+    void handle_control_message(nlohmann::json p_message);
+
     void
     ask_verdict(
         const std::shared_ptr<const struct process_info_t> l_info,

@@ -16,10 +16,14 @@
 
 class control_api : private boost::noncopyable {
 public:
+    typedef std::function<nlohmann::json ()>     get_rules_fn_t;
+    typedef std::function<void (nlohmann::json)> handle_line_fn_t;
+
     control_api(
         std::shared_ptr<spdlog::logger> p_log,
         std::optional<std::string>      p_group,
-        std::function<nlohmann::json()> p_get_rules
+        get_rules_fn_t                  p_get_rules,
+        handle_line_fn_t                p_line_handler
     );
 
     ~control_api();
@@ -35,8 +39,10 @@ private:
         std::deque<nlohmann::json>                  m_outgoing;
     };
 
-    const std::shared_ptr<spdlog::logger>                          m_log;
-    const std::function<nlohmann::json()>                          m_get_rules;
+    const std::shared_ptr<spdlog::logger> m_log;
+    const get_rules_fn_t                  m_get_rules;
+    const handle_line_fn_t                m_handle_line;
+
     boost::asio::io_service                                        m_service;
     std::unique_ptr<boost::asio::local::stream_protocol::acceptor> m_acceptor;
     std::mutex                                                     m_lock;

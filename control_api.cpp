@@ -12,10 +12,12 @@
 control_api::control_api(
     std::shared_ptr<spdlog::logger> p_log,
     std::optional<std::string>      p_group,
-    std::function<nlohmann::json()> p_get_rules
+    get_rules_fn_t                  p_get_rules,
+    handle_line_fn_t                p_handle_line
 ):
     m_log(p_log),
-    m_get_rules(p_get_rules)
+    m_get_rules(p_get_rules),
+    m_handle_line(p_handle_line)
 {
     const char *const l_path = "/tmp/ebpfsnitch.sock";
 
@@ -147,10 +149,12 @@ control_api::handle_reads(std::shared_ptr<session> p_session)
             }
 
             std::istream l_istream(&p_session->m_buffer);
-            std::string m_line;
-            std::getline(l_istream, m_line);
+            std::string l_line;
+            std::getline(l_istream, l_line);
 
-            this->m_log->info("got command {}", m_line);
+            this->m_log->info("got command {}", l_line);
+
+            this->m_handle_line(nlohmann::json::parse(l_line));
 
             this->handle_reads(p_session);
         }

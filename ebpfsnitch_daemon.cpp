@@ -205,7 +205,12 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
         p_group,
         [this]() {
             return this->m_rule_engine.rules_to_json();
-        }
+        },
+        std::bind(
+            &ebpfsnitch_daemon::handle_control_message,
+            this,
+            std::placeholders::_1
+        )
     );
 
     m_thread_group.push_back(
@@ -810,6 +815,31 @@ ebpfsnitch_daemon::process_unhandled()
     }
     
     m_undecided_packets = l_remaining;
+}
+
+void
+ebpfsnitch_daemon::handle_control_message(nlohmann::json p_message)
+{    
+    if (p_message["kind"] == "addRule") {
+        m_log->info("adding rule");
+
+        const std::string l_rule_id = m_rule_engine.add_rule(p_message);
+
+        p_message["ruleId"] = l_rule_id;
+
+        const nlohmann::json l_json = {
+            { "kind", "addRule" },
+            { "body", p_message }
+        };
+
+        m_control_api->queue_outgoing_json(l_json);
+
+        // process_unhandled();
+    } else if (p_message["kind"] == "removeRule") {
+        m_log->info("removing rule");
+
+        m_rule_engine.delete_rule(p_message["ruleId"]);
+    }
 }
 
 std::string
