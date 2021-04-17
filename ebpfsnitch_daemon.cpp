@@ -200,6 +200,14 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
 
     m_iptables_raii = std::make_unique<iptables_raii>(p_log);
 
+    m_control_api = std::make_shared<control_api>(
+        p_log,
+        p_group,
+        [this]() {
+            return this->m_rule_engine.rules_to_json();
+        }
+    );
+
     m_thread_group.push_back(
         ::std::thread(&ebpfsnitch_daemon::filter_thread, this, m_nfq)
     );
@@ -218,10 +226,6 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
 
     m_thread_group.push_back(
         ::std::thread(&ebpfsnitch_daemon::probe_thread, this)
-    );
-
-    m_thread_group.push_back(
-        ::std::thread(&ebpfsnitch_daemon::control_thread, this)
     );
 }
 
@@ -410,25 +414,76 @@ ebpfsnitch_daemon::process_associated_event(
     return false;
 }
 
+void
+ebpfsnitch_daemon::ask_verdict(
+    const std::shared_ptr<const struct process_info_t> l_info,
+    const struct nfq_event_t                          &l_nfq_event
+) {
+    const std::optional<std::string> l_domain = l_nfq_event.m_v6
+        ? m_dns_cache.lookup_domain_v6(
+            l_nfq_event.m_destination_address_v6
+        )
+        : m_dns_cache.lookup_domain_v4(
+            l_nfq_event.m_destination_address
+        );
+
+    const std::string l_destination_address = [&]() {
+        if (l_nfq_event.m_v6) {
+            return ipv6_to_string(l_nfq_event.m_destination_address_v6);
+        } else {
+            return ipv4_to_string(l_nfq_event.m_destination_address);
+        }
+    }();
+
+    const std::string l_source_address = [&]() {
+        if (l_nfq_event.m_v6) {
+            return ipv6_to_string(l_nfq_event.m_source_address_v6);
+        } else {
+            return ipv4_to_string(l_nfq_event.m_source_address);
+        }
+    }();
+
+    nlohmann::json l_json = {
+        { "kind",               "query"                        },
+        { "executable",         l_info->m_executable           },
+        { "userId",             l_info->m_user_id              },
+        { "processId",          l_info->m_process_id           },
+        { "sourceAddress",      l_source_address               },
+        { "sourcePort",         l_nfq_event.m_source_port      },
+        { "destinationPort",    l_nfq_event.m_destination_port },
+        { "destinationAddress", l_destination_address          },
+        { "protocol",
+            ip_protocol_to_string(l_nfq_event.m_protocol)      }
+    };
+
+    if (l_domain.has_value()) {
+        l_json["domain"] = l_domain.value();
+    }
+
+    if (l_info->m_container_id.has_value()) {
+        l_json["container"] = l_info->m_container_id.value();
+    }
+
+    m_control_api->queue_outgoing_json(l_json);
+}
+
 bool
 ebpfsnitch_daemon::process_nfq_event(
     const struct nfq_event_t &l_nfq_event,
     const bool                p_queue_unassociated
 ) {
-    const std::shared_ptr<const struct process_info_t> l_optional_info =
+    const std::shared_ptr<const struct process_info_t> l_info =
         m_connection_manager.lookup_connection_info(l_nfq_event);
 
-    if (l_optional_info) {
-        if (process_associated_event(l_nfq_event, *l_optional_info)) {
+    if (l_info) {
+        if (process_associated_event(l_nfq_event, *l_info)) {
             return true;
         }
     }
 
     if (p_queue_unassociated) {
-        if (l_optional_info) {
-            std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
-            m_undecided_packets.push(l_nfq_event);
-
+        if (l_info) {
+            ask_verdict(l_info, l_nfq_event);
         } else {
             std::lock_guard<std::mutex> l_guard_undecided(
                 m_unassociated_packets_lock
@@ -699,19 +754,17 @@ ebpfsnitch_daemon::process_unassociated()
 
         if (l_info) {
             if (!process_associated_event(l_nfq_event, *l_info)) {
-                std::lock_guard<std::mutex> l_guard2(
-                    m_undecided_packets_lock
-                );
-
-                m_undecided_packets.push(l_nfq_event);
+                ask_verdict(l_info, l_nfq_event);
             }
         } else {
             // two seconds
             if (nanoseconds() > (l_nfq_event.m_timestamp + 2000000000 )) {
+                /*
                 m_log->error(
                     "dropping still unassociated {}",
                     nfq_event_to_string(l_nfq_event)
                 );
+                */
 
                 l_nfq_event.m_queue->send_verdict(
                     l_nfq_event.m_nfq_id,

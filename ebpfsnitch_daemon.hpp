@@ -9,6 +9,7 @@
 
 #include <spdlog/spdlog.h>
 
+#include "control_api.hpp"
 #include "misc.hpp"
 #include "rule_engine.hpp"
 #include "bpf_wrapper.hpp"
@@ -53,9 +54,6 @@ private:
 
     void filter_thread(std::shared_ptr<nfq_wrapper> p_nfq);
     void probe_thread();
-    void control_thread();
-
-    void handle_control(const int p_sock);
 
     std::mutex m_response_lock;
     void process_unhandled();
@@ -94,6 +92,12 @@ private:
     std::mutex m_unassociated_packets_lock;
     void process_unassociated();
 
+    void
+    ask_verdict(
+        const std::shared_ptr<const struct process_info_t> l_info,
+        const struct nfq_event_t                          &l_nfq_event
+    );
+
     std::shared_ptr<bpf_wrapper_ring> m_ring_buffer;
     std::shared_ptr<spdlog::logger>   m_log;
     const std::optional<std::string>  m_group;
@@ -111,9 +115,9 @@ private:
         const struct process_info_t &l_info
     );
 
-    stopper            m_stopper;
-    bpf_wrapper_object m_bpf_wrapper;
-
+    stopper                        m_stopper;
+    bpf_wrapper_object             m_bpf_wrapper;
+    std::shared_ptr<control_api>   m_control_api;
     std::unique_ptr<iptables_raii> m_iptables_raii;
 
     std::vector<std::thread> m_thread_group;
