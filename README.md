@@ -117,29 +117,13 @@ sudo pacman -S clang cmake bpf libbpf libnetfilter_queue spdlog boost libmnl \
     nlohmann-json conntrack-tools python3 python-pyqt5 
 ```
 
-### Installing dependencies on Ubuntu 20.10 (minimum version)
+### Installing dependencies on Ubuntu 21.04 (minimum version)
 
 ```bash
 sudo apt-get install cmake clang libboost-all-dev libspdlog-dev \
     libnfnetlink-dev libmnl-dev linux-tools-common nlohmann-json3-dev \
-    libbpf-dev linux-tools-generic conntrack python3 python3-pyqt5 xxd
-```
-
-The version of `libnetfilter-queue` available on 20.10 is not sufficient. Install
-the 21.04 version.
-
-```bash
-wget http://mirrors.kernel.org/ubuntu/pool/universe/libn/libnetfilter-queue/libnetfilter-queue1_1.0.5-2_amd64.deb
-wget http://mirrors.kernel.org/ubuntu/pool/universe/libn/libnetfilter-queue/libnetfilter-queue-dev_1.0.5-2_amd64.deb
-sudo dpkg --install libnetfilter-queue1_1.0.5-2_amd64.deb
-sudo dpkg --install libnetfilter-queue-dev_1.0.5-2_amd64.deb
-```
-
-You may be prompted during compilation to install an additional package
-for your kernel such as:
-
-```bash
-sudo apt-get install linux-tools-5.8.0-44-generic
+    libbpf-dev linux-tools-generic conntrack python3 python3-pyqt5 \
+    xxd libnetfilter-queue-dev
 ```
 
 ### Setting up the daemon
