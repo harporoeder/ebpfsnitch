@@ -98,7 +98,8 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
         std::string(
             reinterpret_cast<char*>(probes_c_o), sizeof(probes_c_o)
         )
-    )
+    ),
+    m_pending_verdict(false)
 {
     m_log->trace("ebpfsnitch_daemon constructor");
     
@@ -488,9 +489,15 @@ ebpfsnitch_daemon::process_nfq_event(
 
     if (p_queue_unassociated) {
         if (l_info) {
-            ask_verdict(l_info, l_nfq_event);
+            {
+                std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
+
+                m_undecided_packets.push(l_nfq_event);
+            }
+
+            process_unhandled();
         } else {
-            std::lock_guard<std::mutex> l_guard_undecided(
+            std::lock_guard<std::mutex> l_guard(
                 m_unassociated_packets_lock
             );
 
@@ -759,7 +766,13 @@ ebpfsnitch_daemon::process_unassociated()
 
         if (l_info) {
             if (!process_associated_event(l_nfq_event, *l_info)) {
-                ask_verdict(l_info, l_nfq_event);
+                {
+                    std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
+
+                    m_undecided_packets.push(l_nfq_event);
+                }
+
+                process_unhandled();
             }
         } else {
             // two seconds
@@ -793,19 +806,25 @@ ebpfsnitch_daemon::process_unhandled()
 
     // m_log->info("process unhandled");
 
-    std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
+    std::unique_lock<std::mutex> l_guard(m_undecided_packets_lock);
 
     while (m_undecided_packets.size()) {
-        struct nfq_event_t l_unhandled = m_undecided_packets.front(); 
+        struct nfq_event_t l_event = m_undecided_packets.front(); 
 
         const std::shared_ptr<const struct process_info_t> l_info =
-            m_connection_manager.lookup_connection_info(l_unhandled);
+            m_connection_manager.lookup_connection_info(l_event);
 
         if (l_info) {
-            if (!process_associated_event(l_unhandled, *l_info)) {
+            if (!process_associated_event(l_event, *l_info)) {
                 // m_log->info("still undecided");
 
-                l_remaining.push(l_unhandled);
+                l_remaining.push(l_event);
+
+                if (m_pending_verdict == false) {
+                    ask_verdict(l_info, l_event);
+
+                    m_pending_verdict = true;
+                }
             }
         } else {
             m_log->error("event unassociated when it should be, dropping");
@@ -834,7 +853,13 @@ ebpfsnitch_daemon::handle_control_message(nlohmann::json p_message)
 
         m_control_api->queue_outgoing_json(l_json);
 
-        // process_unhandled();
+        {
+            std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
+
+            m_pending_verdict = false;
+        }
+
+        process_unhandled();
     } else if (p_message["kind"] == "removeRule") {
         m_log->info("removing rule");
 

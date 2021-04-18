@@ -120,6 +120,7 @@ private:
     stopper                        m_stopper;
     bpf_wrapper_object             m_bpf_wrapper;
     std::shared_ptr<control_api>   m_control_api;
+    bool                           m_pending_verdict;
     std::unique_ptr<iptables_raii> m_iptables_raii;
 
     std::vector<std::thread> m_thread_group;
