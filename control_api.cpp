@@ -1,11 +1,5 @@
-#include <sys/select.h>
-#include <fcntl.h>
 #include <grp.h>
 #include <unistd.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <poll.h>
-#include <sys/un.h>
 
 #include "control_api.hpp"
 
@@ -61,6 +55,7 @@ control_api::control_api(
 control_api::~control_api()
 {
     m_service.stop();
+
     m_thread.join();
 }
 
@@ -71,11 +66,7 @@ control_api::session::session(boost::asio::io_service &p_service):
 void
 control_api::queue_outgoing_json(const nlohmann::json &p_message)
 {
-    m_log->info("queuing outgoing 1");
-
     m_service.post([this, p_message]() {
-        this->m_log->info("queuing outgoing 2");
-
         for (auto &p_session : this->m_sessions) {
             p_session->m_outgoing.push_back(p_message);
 
@@ -148,13 +139,21 @@ control_api::handle_reads(std::shared_ptr<session> p_session)
                 return;
             }
 
-            std::istream l_istream(&p_session->m_buffer);
-            std::string l_line;
-            std::getline(l_istream, l_line);
+            try {
+                std::istream l_istream(&p_session->m_buffer);
+                std::string l_line;
+                std::getline(l_istream, l_line);
 
-            this->m_log->info("got command {}", l_line);
+                this->m_log->trace("got command {}", l_line);
 
-            this->m_handle_line(nlohmann::json::parse(l_line));
+                this->m_handle_line(nlohmann::json::parse(l_line));
+            } catch (const std::exception &p_error) {
+                this->m_log->warn("connection error {}", p_error.what());
+
+                this->remove_session(p_session);
+
+                return;
+            }
 
             this->handle_reads(p_session);
         }

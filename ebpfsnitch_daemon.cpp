@@ -767,7 +767,9 @@ ebpfsnitch_daemon::process_unassociated()
         if (l_info) {
             if (!process_associated_event(l_nfq_event, *l_info)) {
                 {
-                    std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
+                    std::lock_guard<std::mutex> l_guard(
+                        m_undecided_packets_lock
+                    );
 
                     m_undecided_packets.push(l_nfq_event);
                 }
