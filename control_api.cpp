@@ -156,6 +156,12 @@ control_api::session::handle_writes()
     );
 }
 
+boost::asio::local::stream_protocol::socket &
+control_api::session::get_socket(key p_key)
+{
+    return m_socket;
+}
+
 void
 control_api::session::queue_outgoing_json(const nlohmann::json &p_message)
 {
@@ -193,7 +199,7 @@ control_api::accept()
     ));
 
     m_acceptor->async_accept(
-        l_session->m_socket,
+        l_session->get_socket(session::key()),
         [this, l_session](
             const boost::system::error_code p_error
         ) {

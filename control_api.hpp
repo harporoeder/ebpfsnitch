@@ -37,10 +37,6 @@ public:
             key() = default;
         };
 
-        boost::asio::local::stream_protocol::socket m_socket;
-        boost::asio::streambuf                      m_buffer;
-        std::deque<nlohmann::json>                  m_outgoing;
-
         session(
             key                             p_key,
             boost::asio::io_service        &p_service,
@@ -50,13 +46,19 @@ public:
 
         void start(key p_key);
 
+        boost::asio::local::stream_protocol::socket &get_socket(key p_key);
+
         void queue_outgoing_json(const nlohmann::json &p_message);
 
         void set_on_message_cb(on_message_fn_t p_cb);
 
     private:
-        control_api                          &m_parent;
-        const std::shared_ptr<spdlog::logger> m_log;
+        boost::asio::local::stream_protocol::socket m_socket;
+        control_api                                &m_parent;
+        const std::shared_ptr<spdlog::logger>       m_log;
+        boost::asio::streambuf                      m_buffer;
+        std::deque<nlohmann::json>                  m_outgoing;
+
 
         std::optional<on_message_fn_t> m_on_message;
 
