@@ -59,20 +59,125 @@ control_api::~control_api()
     m_thread.join();
 }
 
-control_api::session::session(boost::asio::io_service &p_service):
-    m_socket(p_service)
+control_api::session::session(
+    key                             p_key,
+    boost::asio::io_service        &p_service,
+    control_api                    &p_parent,
+    std::shared_ptr<spdlog::logger> p_log
+):
+    m_socket(p_service),
+    m_parent(p_parent),
+    m_log(p_log)
 {}
+
+void
+control_api::session::start(key p_key)
+{
+    handle_reads();
+    handle_writes();
+}
+
+void
+control_api::session::handle_reads()
+{
+    std::shared_ptr<session> l_self(shared_from_this());
+
+    boost::asio::async_read_until(
+        m_socket,
+        m_buffer,
+        "\n",
+        [this, l_self](
+            const boost::system::error_code p_error,
+            const std::size_t               p_length
+        ) {
+            if (p_error) {
+                m_log->info("async_write() error {}", p_error.message());
+
+                m_parent.remove_session(l_self);
+
+                return;
+            }
+
+            try {
+                std::istream l_istream(&m_buffer);
+                std::string l_line;
+                std::getline(l_istream, l_line);
+
+                m_log->trace("got command {}", l_line);
+
+                if (m_on_message.has_value()) {
+                    m_on_message.value()(*this, nlohmann::json::parse(l_line));
+                }
+            } catch (const std::exception &p_error) {
+                m_log->warn("connection error {}", p_error.what());
+
+                m_parent.remove_session(l_self);
+
+                return;
+            }
+
+            handle_reads();
+        }
+    );
+}
+
+void
+control_api::session::handle_writes()
+{
+    if (m_outgoing.size() == 0) {
+        return;
+    }
+
+    std::shared_ptr<std::string> l_message = std::make_shared<std::string>(
+        m_outgoing.front().dump() + "\n"
+    );
+
+    std::shared_ptr<session> l_self(shared_from_this());
+
+    boost::asio::async_write(
+        m_socket,
+        boost::asio::buffer(l_message->c_str(), l_message->size()),
+        [this, l_self, l_message](
+            const boost::system::error_code p_error,
+            const std::size_t               p_length
+        ) {
+            m_outgoing.pop_front();
+
+            if (p_error) {
+                m_log->info("async_write() error {}", p_error.message());
+
+                m_parent.remove_session(l_self);
+
+                return;
+            }
+
+            handle_writes();
+        }
+    );
+}
+
+void
+control_api::session::queue_outgoing_json(const nlohmann::json &p_message)
+{
+    m_outgoing.push_back(p_message);
+
+    if (m_outgoing.size() == 1) {
+        handle_writes();
+    }
+}
+
+void
+control_api::session::set_on_message_cb(on_message_fn_t p_cb)
+{
+    m_on_message = std::optional<on_message_fn_t>(p_cb);
+}
 
 void
 control_api::queue_outgoing_json(const nlohmann::json &p_message)
 {
     m_service.post([this, p_message]() {
         for (auto &p_session : this->m_sessions) {
-            p_session->m_outgoing.push_back(p_message);
-
-            if (p_session->m_outgoing.size() == 1) {
-                this->handle_writes(p_session);
-            }
+            p_session->queue_outgoing_json(p_message);
         }
     });
 }
@@ -80,7 +185,12 @@ control_api::queue_outgoing_json(const nlohmann::json &p_message)
 void
 control_api::accept()
 {
-    std::shared_ptr<session> l_session = std::make_shared<session>(m_service);
+    std::shared_ptr<session> l_session = std::shared_ptr<session>(new session(
+        session::key(),
+        m_service,
+        *this,
+        m_log
+    ));
 
     m_acceptor->async_accept(
         l_session->m_socket,
@@ -99,96 +209,9 @@ control_api::accept()
                 m_sessions.insert(l_session);
             }
 
-            this->initial(l_session);
+            l_session->start(session::key());
 
-            this->accept();
-        }
-    );
-}
-
-void
-control_api::initial(std::shared_ptr<session> p_session)
-{
-    m_log->info("sending initial ruleset to ui");
-
-    p_session->m_outgoing.push_back({
-        { "kind",  "setRules"    },
-        { "rules", m_get_rules() }
-    });
-
-    this->handle_writes(p_session);
-    this->handle_reads(p_session);
-}
-
-void
-control_api::handle_reads(std::shared_ptr<session> p_session)
-{
-    boost::asio::async_read_until(
-        p_session->m_socket,
-        p_session->m_buffer,
-        "\n",
-        [this, p_session](
-            const boost::system::error_code p_error,
-            const std::size_t               p_length
-        ) {
-            if (p_error) {
-                this->m_log->info("async_write() error {}", p_error.message());
-
-                this->remove_session(p_session);
-
-                return;
-            }
-
-            try {
-                std::istream l_istream(&p_session->m_buffer);
-                std::string l_line;
-                std::getline(l_istream, l_line);
-
-                this->m_log->trace("got command {}", l_line);
-
-                this->m_handle_line(nlohmann::json::parse(l_line));
-            } catch (const std::exception &p_error) {
-                this->m_log->warn("connection error {}", p_error.what());
-
-                this->remove_session(p_session);
-
-                return;
-            }
-
-            this->handle_reads(p_session);
-        }
-    );
-}
-
-void
-control_api::handle_writes(std::shared_ptr<session> p_session)
-{
-    if (p_session->m_outgoing.size() == 0) {
-        return;
-    }
-
-    std::shared_ptr<std::string> l_message = std::make_shared<std::string>(
-        p_session->m_outgoing.front().dump() + "\n"
-    );
-
-    boost::asio::async_write(
-        p_session->m_socket,
-        boost::asio::buffer(l_message->c_str(), l_message->size()),
-        [this, l_message, p_session](
-            const boost::system::error_code p_error,
-            const std::size_t               p_length
-        ) {
-            p_session->m_outgoing.pop_front();
-
-            if (p_error) {
-                this->m_log->info("async_write() error {}", p_error.message());
-
-                this->remove_session(p_session);
-
-                return;
-            }
-
-            this->handle_writes(p_session);
+            accept();
         }
     );
 }

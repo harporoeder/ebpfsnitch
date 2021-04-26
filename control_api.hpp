@@ -16,8 +16,53 @@
 
 class control_api : private boost::noncopyable {
 public:
+    class session;
+
     typedef std::function<nlohmann::json ()>     get_rules_fn_t;
     typedef std::function<void (nlohmann::json)> handle_line_fn_t;
+    typedef std::function<void (session &)>      on_connect_fn_t;
+
+    class session :
+        public  std::enable_shared_from_this<session>,
+        private boost::noncopyable
+    {
+    public:
+        typedef std::function<void (session &, nlohmann::json)> on_message_fn_t;
+
+        // limited friend access
+        class key {
+        private:
+            friend class control_api;
+
+            key() = default;
+        };
+
+        boost::asio::local::stream_protocol::socket m_socket;
+        boost::asio::streambuf                      m_buffer;
+        std::deque<nlohmann::json>                  m_outgoing;
+
+        session(
+            key                             p_key,
+            boost::asio::io_service        &p_service,
+            control_api                    &p_parent,
+            std::shared_ptr<spdlog::logger> p_log
+        );
+
+        void start(key p_key);
+
+        void queue_outgoing_json(const nlohmann::json &p_message);
+
+        void set_on_message_cb(on_message_fn_t p_cb);
+
+    private:
+        control_api                          &m_parent;
+        const std::shared_ptr<spdlog::logger> m_log;
+
+        std::optional<on_message_fn_t> m_on_message;
+
+        void handle_reads();
+        void handle_writes();
+    };
 
     control_api(
         std::shared_ptr<spdlog::logger> p_log,
@@ -30,15 +75,9 @@ public:
 
     void queue_outgoing_json(const nlohmann::json &p_message);
 
+    void remove_session(std::shared_ptr<session> p_session);
+
 private:
-    struct session : private boost::noncopyable {
-        session(boost::asio::io_service &p_service);
-
-        boost::asio::local::stream_protocol::socket m_socket;
-        boost::asio::streambuf                      m_buffer;
-        std::deque<nlohmann::json>                  m_outgoing;
-    };
-
     const std::shared_ptr<spdlog::logger> m_log;
     const get_rules_fn_t                  m_get_rules;
     const handle_line_fn_t                m_handle_line;
@@ -50,9 +89,5 @@ private:
     std::thread                                                    m_thread;
 
     void accept();
-    void initial(std::shared_ptr<session> p_session);
-    void handle_reads(std::shared_ptr<session> p_session);
-    void handle_writes(std::shared_ptr<session> p_session);
-    void remove_session(std::shared_ptr<session> p_session);
     void thread();
 };
