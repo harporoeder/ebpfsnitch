@@ -80,10 +80,9 @@ class PromptDialog(QDialog):
         self.setLayout(self.layout)
 
 class MainWindow(QMainWindow):
-    _prompt_trigger = QtCore.pyqtSignal()
-    _add_rule_trigger = QtCore.pyqtSignal()
-    _clear_rules_trigger = QtCore.pyqtSignal()
-    _show_rules_trigger = QtCore.pyqtSignal()
+    _clear_state_trigger = QtCore.pyqtSignal()
+    _show_state_trigger = QtCore.pyqtSignal()
+    _new_event_trigger = QtCore.pyqtSignal()
 
     def __init__(self):
         super().__init__()
@@ -91,56 +90,58 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("eBPFSnitch")
         self.resize(920, 600)
 
-        self.scroll = QScrollArea(self)
-        self.scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
-        self.scroll.setWidgetResizable(True)
+        rulesScroll = self.__make_scroll()
+        self._rules = rulesScroll.widget().layout()
 
-        inner = QFrame(self.scroll)
-        v = QVBoxLayout(self.scroll)
-        v.setAlignment(Qt.AlignTop)
-        v.addWidget(QLabel("Firewall Rules:"))
-        inner.setLayout(v)
+        processesScroll = self.__make_scroll()
+        self._processes = processesScroll.widget().layout()
 
-        self.scroll.setWidget(inner)
+        body_widget = QTableWidget()
+        body_widget.setEditTriggers(QTableWidget.NoEditTriggers)
+        body_widget.setSelectionMode(QAbstractItemView.NoSelection)
+        body_widget.setColumnCount(4)
+        body_widget.setRowCount(0)
+        body_widget.resizeRowsToContents()
+        body_widget.verticalScrollBar().setDisabled(True);
+        body_widget.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        body_widget.setHorizontalHeaderLabels(["Executable", "PID", "UID", "GID"])
+        body_widget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        processesScroll.widget().layout().addWidget(body_widget)
+        self._processes = body_widget
 
-        self._rules = v
+        self.tabs = QTabWidget()
+        self.tabs.addTab(rulesScroll, "Firewall Rules")
+        self.tabs.addTab(processesScroll, "Processes")
 
         disconnectedLabel = QLabel("Attempting to connect to daemon")
         disconnectedLabel.setAlignment(Qt.AlignCenter)
 
         self.stack = QStackedWidget(self)
         self.stack.addWidget(disconnectedLabel)
-        self.stack.addWidget(self.scroll)
+        self.stack.addWidget(self.tabs)
 
         self.setCentralWidget(self.stack)
 
         self._done = threading.Event()
         self._allow = False
 
-        self._prompt_trigger.connect(self.on_prompt_trigger)
-        self._add_rule_trigger.connect(self.on_add_rule_trigger)
-        self._clear_rules_trigger.connect(self.on_clear_rules_trigger)
-        self._show_rules_trigger.connect(self.on_show_rules_trigger)
+        self._clear_state_trigger.connect(self.on_clear_state_trigger)
+        self._show_state_trigger.connect(self.on_show_state_trigger)
+        self._new_event_trigger.connect(self.on_new_event_trigger)
+
+    def __make_scroll(self):
+        scroll = QScrollArea(self)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        scroll.setWidgetResizable(True)
+        inner = QFrame(scroll)
+        layout = QVBoxLayout(scroll)
+        layout.setAlignment(Qt.AlignTop)
+        inner.setLayout(layout)
+        scroll.setWidget(inner)
+        return scroll
 
     def set_daemon_client(self, client):
         self._client = client
-
-    @QtCore.pyqtSlot()
-    def on_prompt_trigger(self):        
-        dlg = PromptDialog(self._question)
-        allow = bool(dlg.exec_())
-        self._verdict = {
-            "allow":                      allow,
-            "forAllDestinationAddresses": dlg.forAllDestinationAddresses.isChecked(),
-            "forAllDestinationPorts":     dlg.forAllDestinationPorts.isChecked(),
-            "forAllProtocols":            dlg.forAllProtocols.isChecked(),
-            "forAllUIDs":                 dlg.forAllUIDs.isChecked(),
-            "forAllSourceAddresses":      dlg.forAllSourceAddresses.isChecked(),
-            "forAllSourcePorts":          dlg.forAllSourcePorts.isChecked(),
-            "priority":                   dlg.priority.value(),
-            "persistent":                 dlg.persistent.isChecked()
-        }
-        self._done.set()
 
     def on_delete_rule_trigger(self, ruleId, widget):
         print("clicked rule delete: " + ruleId);
@@ -154,16 +155,22 @@ class MainWindow(QMainWindow):
 
         widget.deleteLater()
 
-    @QtCore.pyqtSlot()
-    def on_add_rule_trigger(self):
-        ruleId = self._new_rule["ruleId"]
+    def __add_process(self, event):
+        self._processes.insertRow(self._processes.rowCount())
+        self._processes.setItem(self._processes.rowCount() - 1, 0, QTableWidgetItem(event["executable"]))
+        self._processes.setItem(self._processes.rowCount() - 1, 1, QTableWidgetItem(str(event["processId"])))
+        self._processes.setItem(self._processes.rowCount() - 1, 2, QTableWidgetItem(str(event["userId"])))
+        self._processes.setItem(self._processes.rowCount() - 1, 3, QTableWidgetItem(str(event["groupId"])))
+
+    def __add_rule(self, event):
+        ruleId = event["ruleId"]
         delete_button = QPushButton("Remove Rule")
 
         header = QHBoxLayout()
-        header.addWidget(QLabel("Rule UUID: " + self._new_rule["ruleId"]))
-        header.addWidget(QLabel("Allow: " + str(self._new_rule["allow"])))
-        header.addWidget(QLabel("Persistent: " + str(self._new_rule["persistent"])))
-        header.addWidget(QLabel("Priority: " + str(self._new_rule["priority"])))
+        header.addWidget(QLabel("Rule UUID: " + event["ruleId"]))
+        header.addWidget(QLabel("Allow: " + str(event["allow"])))
+        header.addWidget(QLabel("Persistent: " + str(event["persistent"])))
+        header.addWidget(QLabel("Priority: " + str(event["priority"])))
         header.addWidget(delete_button)
         header_widget = QWidget()
         header_widget.setLayout(header)
@@ -180,7 +187,7 @@ class MainWindow(QMainWindow):
         body_widget.setHorizontalHeaderLabels(["Selector", "Matches"])
         body_widget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
-        for clause in self._new_rule["clauses"]:
+        for clause in event["clauses"]:
             body_widget.insertRow(body_widget.rowCount())
             body_widget.setItem(body_widget.rowCount() - 1, 0, QTableWidgetItem(clause["field"]))
             body_widget.setItem(body_widget.rowCount() - 1, 1, QTableWidgetItem(clause["value"]))
@@ -200,45 +207,132 @@ class MainWindow(QMainWindow):
     
         self._rules.addWidget(item)
 
+    @QtCore.pyqtSlot()
+    def on_new_event_trigger(self):
+        event = self._new_event
+        self._event_result = None
+
+        if event["kind"] == "addProcess":
+            self.__add_process(event)
+
+        elif event["kind"] == "removeProcess":
+            process = str(event["processId"])
+            for row in range(self._processes.rowCount()):
+                if self._processes.item(row, 1).text() == process:
+                    self._processes.removeRow(row)
+                    break
+    
+        elif event["kind"] == "setProcesses":
+            for process in event["processes"]:
+                self.__add_process(process)
+
+        elif event["kind"] == "addRule":
+            self.__add_rule(event["body"])
+
+        elif event["kind"] == "setRules":
+            for rule in event["rules"]:
+                self.__add_rule(rule)
+            self.on_show_state_trigger()
+
+        elif event["kind"] == "query":
+            parsed = event
+
+            dlg = PromptDialog(event)
+
+            command = {
+                "kind": "addRule",
+                "allow": bool(dlg.exec_()),
+                "priority": dlg.priority.value(),
+                "persistent": dlg.persistent.isChecked(),
+                "clauses": [
+                    {
+                        "field": "executable",
+                        "value": event["executable"]
+                    }
+                ]
+            }
+
+            if dlg.forAllDestinationAddresses.isChecked() == False:
+                command["clauses"].append(
+                    {
+                        "field": "destinationAddress",
+                        "value": parsed["destinationAddress"]
+                    }
+                )
+
+            if dlg.forAllDestinationPorts.isChecked() == False:
+                command["clauses"].append(
+                    {
+                        "field": "destinationPort",
+                        "value": str(parsed["destinationPort"])
+                    }
+                )
+
+            if dlg.forAllSourceAddresses.isChecked() == False:
+                command["clauses"].append(
+                    {
+                        "field": "sourceAddress",
+                        "value": parsed["sourceAddress"]
+                    }
+                )
+
+            if dlg.forAllSourcePorts.isChecked() == False:
+                command["clauses"].append(
+                    {
+                        "field": "sourcePort",
+                        "value": str(parsed["sourcePort"])
+                    }
+                )
+
+            if dlg.forAllProtocols.isChecked() == False:
+                command["clauses"].append(
+                    {
+                        "field": "protocol",
+                        "value": parsed["protocol"]
+                    }
+                )
+
+            if dlg.forAllUIDs.isChecked() == False:
+                command["clauses"].append(
+                    {
+                        "field": "userId",
+                        "value": str(parsed["userId"])
+                    }
+                )
+
+            self._event_result = command
+
         self._done.set()
 
     @QtCore.pyqtSlot()
-    def on_clear_rules_trigger(self):
-        print("clearing rules")
-
+    def on_clear_state_trigger(self):
         self.stack.setCurrentIndex(0)
 
         for i in reversed(range(self._rules.count())): 
             self._rules.itemAt(i).widget().deleteLater()
 
-        self._rules.addWidget(QLabel("Firewall Rules:"))
+        self._processes.setRowCount(0)
 
         self._done.set()
 
     @QtCore.pyqtSlot()
-    def on_show_rules_trigger(self):
+    def on_show_state_trigger(self):
         self.stack.setCurrentIndex(1)
 
-    def handle_add_rule(self, rule):
+    def handle_show_state(self):
+        self._show_state_trigger.emit()
+
+    def handle_clear_state(self):
         self._done.clear()
-        self._new_rule = rule
-        self._add_rule_trigger.emit()
+        self._clear_state_trigger.emit()
         self._done.wait()
 
-    def handle_show_rules(self):
-        self._show_rules_trigger.emit()
-
-    def handle_clear_rules(self):
+    def handle_event(self, process):
         self._done.clear()
-        self._clear_rules_trigger.emit()
+        self._new_event = process
+        self._new_event_trigger.emit()
         self._done.wait()
-
-    def handle_prompt(self, question):
-        self._done.clear()
-        self._question = question
-        self._prompt_trigger.emit()
-        self._done.wait()
-        return self._verdict
+        return self._event_result
 
 class DaemonClient:
     def __init__(self, address, window):
@@ -257,7 +351,7 @@ class DaemonClient:
                 self.__run()
             except Exception as err:
                 print(repr(err))
-                self._window.handle_clear_rules()
+                self._window.handle_clear_state()
                 self._stopper.wait(1)
 
     def __run(self):
@@ -299,85 +393,9 @@ class DaemonClient:
 
     def __handle_line(self, line):
         parsed = json.loads(line)
-        if parsed["kind"] == "query":
-            print(parsed["executable"])
-
-            result = self._window.handle_prompt(parsed)
-
-            command = {
-                "kind": "addRule",
-                "allow": result["allow"],
-                "priority": result["priority"],
-                "persistent": result["persistent"],
-                "clauses": [
-                    {
-                        "field": "executable",
-                        "value": parsed["executable"]
-                    }
-                ]
-            }
-
-            if result["forAllDestinationAddresses"] == False:
-                command["clauses"].append(
-                    {
-                        "field": "destinationAddress",
-                        "value": parsed["destinationAddress"]
-                    }
-                )
-
-            if result["forAllDestinationPorts"] == False:
-                command["clauses"].append(
-                    {
-                        "field": "destinationPort",
-                        "value": str(parsed["destinationPort"])
-                    }
-                )
-
-            if result["forAllSourceAddresses"] == False:
-                command["clauses"].append(
-                    {
-                        "field": "sourceAddress",
-                        "value": parsed["sourceAddress"]
-                    }
-                )
-
-            if result["forAllSourcePorts"] == False:
-                command["clauses"].append(
-                    {
-                        "field": "sourcePort",
-                        "value": str(parsed["sourcePort"])
-                    }
-                )
-
-            if result["forAllProtocols"] == False:
-                command["clauses"].append(
-                    {
-                        "field": "protocol",
-                        "value": parsed["protocol"]
-                    }
-                )
-
-            if result["forAllUIDs"] == False:
-                command["clauses"].append(
-                    {
-                        "field": "userId",
-                        "value": str(parsed["userId"])
-                    }
-                )
-
+        command = self._window.handle_event(parsed)
+        if command != None:
             self.send_dict(command)
-        elif parsed["kind"] == "addRule":
-            self._window.handle_add_rule(parsed["body"])
-        elif parsed["kind"] == "setRules":
-            self._window.handle_clear_rules()
-            for rule in parsed["rules"]:
-                print(rule)
-                self._window.handle_add_rule(rule)
-            self._window.handle_show_rules()
-        elif parsed["kind"] == "ping":
-            ...
-        else:
-            print("unknown command")
 
     def stop(self):
         self._stopper.set()

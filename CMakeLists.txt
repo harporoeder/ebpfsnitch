@@ -71,7 +71,7 @@ add_library(
 target_compile_options(
     libebpfsnitchd
     PUBLIC
-        -Wall
+        -Wall -g3
 )
 
 target_compile_definitions(libebpfsnitchd PUBLIC SPDLOG_FMT_EXTERNAL)

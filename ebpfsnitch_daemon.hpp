@@ -92,8 +92,6 @@ private:
     std::mutex m_unassociated_packets_lock;
     void process_unassociated();
 
-    void handle_control_message(nlohmann::json p_message);
-
     void
     ask_verdict(
         const std::shared_ptr<const struct process_info_t> l_info,
@@ -120,7 +118,6 @@ private:
     stopper                        m_stopper;
     bpf_wrapper_object             m_bpf_wrapper;
     std::shared_ptr<control_api>   m_control_api;
-    bool                           m_pending_verdict;
     std::unique_ptr<iptables_raii> m_iptables_raii;
 
     std::vector<std::thread> m_thread_group;
@@ -130,4 +127,23 @@ private:
         const char *const p_start,
         const char *const p_end
     );
+
+    struct connection_context {
+        bool                                  m_pending_verdict;
+        std::shared_ptr<control_api::session> m_session;
+    };
+
+    std::mutex m_control_connections_lock;
+    std::unordered_set<std::shared_ptr<connection_context>>
+        m_control_connections;
+
+    void
+    handle_control_message(
+        std::weak_ptr<connection_context> p_context,
+        nlohmann::json                    p_message
+    );
+
+    void handle_disconnect(std::weak_ptr<connection_context> p_context);
+
+    void send_to_all_control_connections(const nlohmann::json p_message);
 };

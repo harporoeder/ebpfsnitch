@@ -98,8 +98,7 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
         std::string(
             reinterpret_cast<char*>(probes_c_o), sizeof(probes_c_o)
         )
-    ),
-    m_pending_verdict(false)
+    )
 {
     m_log->trace("ebpfsnitch_daemon constructor");
     
@@ -204,14 +203,76 @@ ebpfsnitch_daemon::ebpfsnitch_daemon(
     m_control_api = std::make_shared<control_api>(
         p_log,
         p_group,
-        [this]() {
-            return this->m_rule_engine.rules_to_json();
-        },
-        std::bind(
-            &ebpfsnitch_daemon::handle_control_message,
-            this,
-            std::placeholders::_1
-        )
+        [this](std::shared_ptr<control_api::session> p_session) {
+            m_log->info("on_connect_cb");
+
+            p_session->queue_outgoing_json({
+                { "kind",  "setRules"                         },
+                { "rules", m_rule_engine.rules_to_json(false) }
+            });
+
+            p_session->queue_outgoing_json({
+                { "kind",     "setProcesses"                         },
+                { "processes", m_process_manager.processes_to_json() }
+            });
+
+            std::shared_ptr<connection_context> l_context =
+                std::make_shared<connection_context>();
+
+            l_context->m_pending_verdict = false;
+            l_context->m_session         = p_session;
+
+            std::weak_ptr<connection_context> l_context_weak = l_context;
+
+            p_session->set_on_message_cb(
+                std::bind(
+                    &ebpfsnitch_daemon::handle_control_message,
+                    this,
+                    l_context_weak,
+                    std::placeholders::_1
+                )
+            );
+
+            p_session->set_on_disconnect_cb(
+                std::bind(
+                    &ebpfsnitch_daemon::handle_disconnect,
+                    this,
+                    l_context_weak
+                )
+            );
+
+            {
+                std::lock_guard<std::mutex> l_guard(m_control_connections_lock);
+                m_control_connections.insert(l_context);
+            }
+
+            process_unhandled();
+        }
+    );
+
+    m_process_manager.set_load_process_cb(
+        [&] (const process_info_t &p_process) {
+            nlohmann::json l_json = {
+                { "kind",       "addProcess"           },
+                { "processId" , p_process.m_process_id },
+                { "executable", p_process.m_executable },
+                { "userId",     p_process.m_user_id    },
+                { "groupId",    p_process.m_group_id   }
+            };
+
+            send_to_all_control_connections(l_json);
+        }
+    );
+
+    m_process_manager.set_remove_process_cb(
+        [&] (const uint32_t p_process_id) {
+            nlohmann::json l_json = {
+                { "kind",       "removeProcess" },
+                { "processId" , p_process_id    }
+            };
+
+            send_to_all_control_connections(l_json);
+        }
     );
 
     m_thread_group.push_back(
@@ -470,7 +531,14 @@ ebpfsnitch_daemon::ask_verdict(
         l_json["container"] = l_info->m_container_id.value();
     }
 
-    m_control_api->queue_outgoing_json(l_json);
+    std::lock_guard<std::mutex> l_guard(m_control_connections_lock);
+
+    for (const auto &l_context: m_control_connections) {
+        if (l_context->m_pending_verdict == false) {
+            l_context->m_session->queue_outgoing_json(l_json);
+            l_context->m_pending_verdict = true;
+        }
+    }
 }
 
 bool
@@ -822,11 +890,7 @@ ebpfsnitch_daemon::process_unhandled()
 
                 l_remaining.push(l_event);
 
-                if (m_pending_verdict == false) {
-                    ask_verdict(l_info, l_event);
-
-                    m_pending_verdict = true;
-                }
+                ask_verdict(l_info, l_event);
             }
         } else {
             m_log->error("event unassociated when it should be, dropping");
@@ -839,8 +903,18 @@ ebpfsnitch_daemon::process_unhandled()
 }
 
 void
-ebpfsnitch_daemon::handle_control_message(nlohmann::json p_message)
-{    
+ebpfsnitch_daemon::handle_control_message(
+    std::weak_ptr<connection_context> p_context,
+    nlohmann::json                    p_message
+) {
+    std::shared_ptr<connection_context> l_context = p_context.lock();
+
+    if (!l_context) {
+        m_log->error("handle_control_message weak_ptr expired");
+
+        return;
+    }
+
     if (p_message["kind"] == "addRule") {
         m_log->info("adding rule");
 
@@ -853,19 +927,45 @@ ebpfsnitch_daemon::handle_control_message(nlohmann::json p_message)
             { "body", p_message }
         };
 
-        m_control_api->queue_outgoing_json(l_json);
+        send_to_all_control_connections(l_json);
 
-        {
-            std::lock_guard<std::mutex> l_guard(m_undecided_packets_lock);
-
-            m_pending_verdict = false;
-        }
+        l_context->m_pending_verdict = false;
 
         process_unhandled();
     } else if (p_message["kind"] == "removeRule") {
         m_log->info("removing rule");
 
         m_rule_engine.delete_rule(p_message["ruleId"]);
+    }
+}
+
+void
+ebpfsnitch_daemon::handle_disconnect(
+    std::weak_ptr<connection_context> p_context
+) {
+    m_log->info("handle_disconnect");
+
+    std::shared_ptr<connection_context> l_context = p_context.lock();
+
+    if (!l_context) {
+        m_log->error("handle_disconnect weak_ptr expired");
+
+        return;
+    }
+
+    std::lock_guard<std::mutex> l_guard(m_control_connections_lock);
+
+    m_control_connections.erase(l_context);
+}
+
+void
+ebpfsnitch_daemon::send_to_all_control_connections(
+    const nlohmann::json p_message
+) {
+    std::lock_guard<std::mutex> l_guard(m_control_connections_lock);
+
+    for (const auto &l_context: m_control_connections) {
+        l_context->m_session->queue_outgoing_json(p_message);
     }
 }
 

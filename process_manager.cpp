@@ -136,7 +136,23 @@ process_manager::lookup_process_info(const uint32_t p_process_id)
 
     m_process_cache[p_process_id] = l_process;
 
+    if (m_add_process_cb.has_value()) {
+        m_add_process_cb.value()(*l_process);
+    }
+
     return l_process;
+}
+
+void
+process_manager::set_load_process_cb(add_process_cb_t p_cb)
+{
+    m_add_process_cb = std::optional<add_process_cb_t>(p_cb);
+}
+
+void
+process_manager::set_remove_process_cb(remove_process_cb_t p_cb)
+{
+    m_remove_process_cb = std::optional<remove_process_cb_t>(p_cb);
 }
 
 void
@@ -157,6 +173,10 @@ process_manager::reap_dead()
 
             m_log->info("filtering process {}", l_process.first);
 
+            if (m_remove_process_cb.has_value()) {
+                m_remove_process_cb.value()(l_process.first);
+            }
+
             return true;
         }
     );
@@ -168,4 +188,35 @@ process_manager::reaper_thread()
     while (!m_stopper.await_stop_for_milliseconds(1000)) {
         reap_dead();
     }
+}
+
+nlohmann::json
+process_manager::processes_to_json()
+{
+    nlohmann::json l_result = nlohmann::json::array();
+
+    std::lock_guard<std::mutex> l_guard(m_lock);
+
+    for (const auto &l_iter : m_process_cache) {
+        l_result.push_back(l_iter.second->to_json());
+    }
+
+    return l_result;
+}
+
+nlohmann::json
+process_info_t::to_json() const
+{
+    nlohmann::json l_result = {
+        { "processId" , m_process_id },
+        { "executable", m_executable },
+        { "userId",     m_user_id    },
+        { "groupId",    m_group_id   }
+    };
+
+    if (m_container_id.has_value()) {
+        l_result["containerId"] = m_container_id.value();
+    }
+
+    return l_result;
 }
