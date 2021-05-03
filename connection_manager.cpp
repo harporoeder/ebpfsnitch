@@ -13,52 +13,6 @@ connection_manager::~connection_manager()
     m_thread.join();
 }
 
-std::string
-connection_manager::make_key(
-    const ip_protocol_t p_protocol,
-    const bool          p_v6,
-    const __uint128_t   p_source_address,
-    const __uint128_t   p_destination_address,
-    const uint16_t      p_source_port,
-    const uint16_t      p_destination_port
-){
-    std::string l_key;
-
-    l_key.reserve(
-        sizeof(p_protocol) +
-        sizeof(p_v6) +
-        sizeof(p_source_address) +
-        sizeof(p_destination_address) +
-        sizeof(p_source_port) +
-        sizeof(p_destination_port)
-    );
-
-    l_key.append((char *)&p_protocol, sizeof(p_protocol));
-    l_key.append((char *)&p_v6, sizeof(p_v6));
-
-    l_key.append(
-        (char *)&p_source_address,
-        sizeof(p_source_address)
-    );
-
-    l_key.append(
-        (char *)&p_destination_address,
-        sizeof(p_destination_address)
-    );
-
-    l_key.append(
-        (char *)&p_source_port,
-        sizeof(p_source_port)
-    );
-
-    l_key.append(
-        (char *)&p_destination_port,
-        sizeof(p_destination_port)
-    );
-
-    return l_key;
-}
-
 std::shared_ptr<const struct process_info_t>
 connection_manager::lookup_connection_info(const nfq_event_t &p_event)
 {
@@ -68,14 +22,14 @@ connection_manager::lookup_connection_info(const nfq_event_t &p_event)
     const __uint128_t l_destination_address = p_event.m_v6 ?
         p_event.m_destination_address_v6 : p_event.m_destination_address;
 
-    const std::string l_key = make_key(
-        p_event.m_protocol,
-        p_event.m_v6,
-        l_source_address,
-        l_destination_address,
-        p_event.m_source_port,
-        p_event.m_destination_port
-    );
+    connection_tuple_t l_key = {
+        .m_protocol            = static_cast<ip_protocol_t>(p_event.m_protocol),
+        .m_v6                  = p_event.m_v6,
+        .m_source_address      = l_source_address,
+        .m_destination_address = l_destination_address,
+        .m_source_port         = p_event.m_source_port,
+        .m_destination_port    = p_event.m_destination_port
+    };
 
     std::lock_guard<std::mutex> l_guard(m_lock);
 
@@ -86,16 +40,9 @@ connection_manager::lookup_connection_info(const nfq_event_t &p_event)
 
         return l_iter->second.m_process;
     } else {
-        const std::string l_key2 = make_key(
-            p_event.m_protocol,
-            p_event.m_v6,
-            0,
-            l_destination_address,
-            p_event.m_source_port,
-            p_event.m_destination_port
-        );
+        l_key.m_source_address = 0;
 
-        const auto l_iter2 = m_mapping.find(l_key2);
+        const auto l_iter2 = m_mapping.find(l_key);
 
         if (l_iter2 != m_mapping.end()) {
             l_iter2->second.m_last_active = std::chrono::steady_clock::now();
@@ -118,21 +65,23 @@ connection_manager::add_connection_info(
     const __uint128_t l_destination_address = p_event.m_v6 ?
         p_event.m_destination_address_v6 : p_event.m_destination_address;
 
-    const std::string l_key = make_key(
-        static_cast<ip_protocol_t>(p_event.m_protocol),
-        p_event.m_v6,
-        l_source_address,
-        l_destination_address,
-        p_event.m_source_port,
-        p_event.m_destination_port
-    );
+    const connection_tuple_t l_key = {
+        .m_protocol            = static_cast<ip_protocol_t>(p_event.m_protocol),
+        .m_v6                  = p_event.m_v6,
+        .m_source_address      = l_source_address,
+        .m_destination_address = l_destination_address,
+        .m_source_port         = p_event.m_source_port,
+        .m_destination_port    = p_event.m_destination_port
+    };
 
-    std::lock_guard<std::mutex> l_guard(m_lock);
-
-    m_mapping[l_key] = item_t{
+    const item_t l_item = {
         .m_last_active = std::chrono::steady_clock::now(),
         .m_process     = p_process
     };
+
+    std::lock_guard<std::mutex> l_guard(m_lock);
+
+    m_mapping[l_key] = l_item;
 }
 
 void
