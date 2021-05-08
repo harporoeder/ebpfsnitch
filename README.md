@@ -114,7 +114,7 @@ Python: [PyQT5](https://pypi.org/project/PyQt5/)
 
 ```bash
 sudo pacman -S clang cmake bpf libbpf libnetfilter_queue spdlog boost libmnl \
-    nlohmann-json conntrack-tools python3 python-pyqt5 
+    nlohmann-json conntrack-tools python3 python-pyqt5 vim
 ```
 
 ### Installing dependencies on Ubuntu 21.04 (minimum version)

@@ -22,6 +22,7 @@ depends=(
     'python3'
     'python-pyqt5'
     'conntrack-tools'
+    'vim'
 )
 
 source=("https://github.com/harporoeder/ebpfsnitch/archive/refs/tags/$pkgver.tar.gz")
