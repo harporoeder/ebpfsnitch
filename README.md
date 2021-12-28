@@ -126,6 +126,20 @@ sudo apt-get install cmake clang libboost-all-dev libspdlog-dev \
     xxd libnetfilter-queue-dev
 ```
 
+### Installing dependencies on OpenSuse TumbleWeed
+
+The program can be compiled on OpenSuse TumbleWeed, it took me an hour of fiddling.
+I'm not sure about the exact packages, but this works:
+
+```bash
+sudo zypper install make gcc *boost* cmake clang bpftool *bpf* nlohmann* spd* *netfilter*
+```
+
+Some packages are not in the default repo but required
+[libmnl](https://software.opensuse.org/download/package?package=libmnl&project=openSUSE%3AFactory)
+[libnfnetlink](https://software.opensuse.org//download.html?project=openSUSE%3AFactory&package=libnfnetlink)
+[libnetfilter_queue](https://software.opensuse.org/download.html?project=security%3Anetfilter&package=libnetfilter_queue)
+
 ### Setting up the daemon
 
 From the eBPFSnitch repository directory:
