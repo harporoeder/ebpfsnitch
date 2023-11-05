@@ -24,38 +24,45 @@ struct ebpf_event_t {
     uint8_t     m_protocol;
 } __attribute__((packed));
 
-struct bpf_map_def SEC("maps") g_probe_ipv4_events = {
-    .type        = BPF_MAP_TYPE_RINGBUF,
-    .max_entries = 4096 * 64
-};
 
-struct bpf_map_def SEC("maps") g_ipv4_tcp_connect_map = {
-    .type        = BPF_MAP_TYPE_HASH,
-    .key_size    = sizeof(uint64_t),
-    .value_size  = sizeof(struct sock *),
-    .max_entries = 1000
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_RINGBUF);
+    __uint(max_entries, 4096 * 64);
+} g_probe_ipv4_events SEC(".maps");
 
-struct bpf_map_def SEC("maps") g_ipv6_tcp_connect_map = {
-    .type        = BPF_MAP_TYPE_HASH,
-    .key_size    = sizeof(uint64_t),
-    .value_size  = sizeof(struct sock *),
-    .max_entries = 1000
-};
 
-struct bpf_map_def SEC("maps") g_send_map1 = {
-    .type        = BPF_MAP_TYPE_HASH,
-    .key_size    = sizeof(uint64_t),
-    .value_size  = sizeof(struct socket *),
-    .max_entries = 1000
-};
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1000);
+    __type(key, uint64_t);
+    __type(value, struct sock *);
+} g_ipv4_tcp_connect_map SEC(".maps");
 
-struct bpf_map_def SEC("maps") g_send_map2 = {
-    .type        = BPF_MAP_TYPE_HASH,
-    .key_size    = sizeof(uint64_t),
-    .value_size  = sizeof(struct msghdr *),
-    .max_entries = 1000
-};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1000);
+    __type(key, uint64_t);
+    __type(value, struct sock *);
+} g_ipv6_tcp_connect_map SEC(".maps");
+
+
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1000);
+    __type(key, uint64_t);
+    __type(value, struct socket *);
+} g_send_map1 SEC(".maps");
+
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1000);
+    __type(key, uint64_t);
+    __type(value, struct msghdr *);
+} g_send_map2 SEC(".maps");
+
 
 #define AF_INET 2
 

@@ -176,10 +176,6 @@ bpf_wrapper_object::impl::~impl()
             m_log->error("bpf_link__destroy() failed");
         }
     }
-
-    if (bpf_object__unload(m_object.get()) != 0) {
-        m_log->error("bpf_object__unload() failed");
-    }
 }
 
 void
