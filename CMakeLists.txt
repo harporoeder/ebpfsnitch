@@ -30,6 +30,7 @@ target_include_directories(
     PRIVATE
         ${CMAKE_CURRENT_BINARY_DIR}
 )
+target_compile_definitions(probes PUBLIC __TARGET_ARCH_x86)
 
 target_compile_options(
     probes
@@ -75,6 +76,7 @@ target_compile_options(
 )
 
 target_compile_definitions(libebpfsnitchd PUBLIC SPDLOG_FMT_EXTERNAL)
+target_compile_definitions(libebpfsnitchd PUBLIC __TARGET_ARCH_x86)
 
 target_include_directories(
     libebpfsnitchd
